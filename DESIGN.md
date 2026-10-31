@@ -330,3 +330,7 @@ The printable report is the same man-page anatomy at page scale (max 980px): hea
 - **Don't** dress it as a hacker movie: no glowing text, scanlines, CRT effects or matrix green on everything.
 - **Don't** introduce a second typeface or turn ligatures on.
 - **Don't** replace a real control with a fake terminal input that only accepts typed commands.
+
+## Demo disclaimer
+
+Every page, including reports, ends with a fixed, centred strip reading "This is a testing demo application only." It sits below the tmux bar, which is offset by `--disclaimer-h`, and uses `--pane-2` with `--ink` text so it stays readable without competing with severity colours.

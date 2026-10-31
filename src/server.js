@@ -11,6 +11,7 @@ import { UNDERTAKING_VERSION, UNDERTAKING_CLAUSES, LEGAL_NOTICE, AUTH_LIMITATION
 import { challengeHost } from './verify.js';
 import { createScan, runScan, running, audit } from './scanner.js';
 import { renderReport, LIMITATIONS } from './report.js';
+import { createLab } from './lab.js';
 import { newId, nowIso, mask, clamp } from './util.js';
 import { setConfig, publicConfig } from './config.js';
 import { createMailer } from './mail.js';
@@ -24,6 +25,7 @@ const STATIC = {
   '/styles.css': ['styles.css', 'text/css; charset=utf-8'],
   '/report.css': ['report.css', 'text/css; charset=utf-8'],
   '/favicon.svg': ['favicon.svg', 'image/svg+xml'],
+  '/EXAMPLES.md': ['../EXAMPLES.md', 'text/plain; charset=utf-8'],
   '/fonts/jetbrains-mono.woff2': ['fonts/jetbrains-mono.woff2', 'font/woff2'],
   '/fonts/jetbrains-mono-italic.woff2': ['fonts/jetbrains-mono-italic.woff2', 'font/woff2'],
 };
@@ -40,7 +42,9 @@ const SECURITY_HEADERS = {
 const MAX_AUTH_DAYS = 90;
 const SESSION_COOKIE = 'bp_sid';
 const ABSOLUTE_SESSION_MS = 7 * 86400_000;
-const TOKEN_TTL = { verify: 48 * 3600_000, reset: 3600_000, invite: 72 * 3600_000, authconfirm: 72 * 3600_000 };
+// Accounts an admin issues work for 30 days at most, and only while this run of the app lasts.
+const ACCESS_MS = 30 * 86400_000;
+const TOKEN_TTL = { verify: 48 * 3600_000, reset: 3600_000, authconfirm: 72 * 3600_000 };
 
 export const DEFAULT_CONTROLS = {
   maxRequests: 500,
@@ -142,6 +146,8 @@ export function createApp({ config, log = console } = {}) {
   const key = config.secretKey ? Buffer.from(config.secretKey, 'base64') : loadKey(config.dataDir);
   const mailer = createMailer(config, { log });
   const limiter = new RateLimiter();
+  const lab = createLab({ key, log });
+  const appRun = randomToken(9);
   let server;
 
   const sysAudit = (event, detail = {}) => {
@@ -199,16 +205,42 @@ export function createApp({ config, log = console } = {}) {
     for (const t of Object.values(data.tokens)) if (!t.usedAt && pred(t)) t.usedAt = nowIso();
   };
 
+  // ----- access for accounts an admin issued -----
+  /** Why this account can't be used right now, or null if it can. Administrators have no time limit. */
+  const accessEnded = (u) => {
+    if (u.role === 'admin') return null;
+    if (!u.access) return 'This account has no active access. Ask your administrator to issue it again.';
+    if (u.access.runId !== appRun) return 'Your access ended when the app restarted. Ask your administrator to issue it again.';
+    if (new Date(u.access.expiresAt) <= new Date()) return 'Your 30 days of access have ended. Ask your administrator to issue it again.';
+    return null;
+  };
+  /** Sets a new setup token and 30-day limit. Returns what the admin hands over; only hashes are kept. */
+  const issueAccess = (u, password, by) => {
+    const setupToken = randomToken(18);
+    const pass = password || randomToken(15);
+    checkNewPassword(pass, u.email);
+    const expiresAt = new Date(Date.now() + ACCESS_MS).toISOString();
+    u.passwordHash = hashPassword(pass);
+    u.emailVerifiedAt ??= nowIso();
+    u.access = { tokenHash: sha256(setupToken), issuedAt: nowIso(), issuedBy: by, expiresAt, runId: appRun };
+    endSessions((s) => s.userId === u.id);
+    return { email: u.email, password: pass, setupToken, expiresAt };
+  };
+
   // ----- sessions (random id in an HttpOnly cookie; only its hash is stored) -----
   const secureCookies = (req) => config.publicUrl.startsWith('https://') || (config.trustProxy && req.headers['x-forwarded-proto'] === 'https');
   const cookie = (req, value, maxAgeSec) => `${SESSION_COOKIE}=${value}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAgeSec}${secureCookies(req) ? '; Secure' : ''}`;
   const clientIp = (req) => (config.trustProxy && req.headers['x-forwarded-for'] ? String(req.headers['x-forwarded-for']).split(',')[0].trim() : req.socket.remoteAddress) || 'unknown';
 
+  const accessLimited = (u) => u.role !== 'admin' && !!u.access;
   const startSession = (req, res, user) => {
     const raw = randomToken();
     const now = Date.now();
-    data.sessions[sha256(raw)] = { userId: user.id, createdAt: new Date(now).toISOString(), lastSeenAt: new Date(now).toISOString(), ip: clientIp(req), userAgent: String(req.headers['user-agent'] || '').slice(0, 200) };
-    res.setHeader('set-cookie', cookie(req, raw, config.sessionHours * 3600));
+    // An issued account has one session at a time, lasting as long as its access does.
+    const limited = accessLimited(user);
+    if (limited) endSessions((s) => s.userId === user.id);
+    data.sessions[sha256(raw)] = { userId: user.id, ...(limited ? { expiresAt: user.access.expiresAt } : {}), createdAt: new Date(now).toISOString(), lastSeenAt: new Date(now).toISOString(), ip: clientIp(req), userAgent: String(req.headers['user-agent'] || '').slice(0, 200) };
+    res.setHeader('set-cookie', cookie(req, raw, limited ? Math.floor((new Date(user.access.expiresAt) - now) / 1000) : config.sessionHours * 3600));
     user.lastLoginAt = nowIso();
     store.save();
   };
@@ -223,9 +255,9 @@ export function createApp({ config, log = console } = {}) {
     if (!s) return null;
     const now = Date.now();
     const user = data.users[s.userId];
-    const idle = now - new Date(s.lastSeenAt) > config.sessionHours * 3600_000;
-    const old = now - new Date(s.createdAt) > ABSOLUTE_SESSION_MS;
-    if (!user || user.disabledAt || idle || old) {
+    const idle = !s.expiresAt && now - new Date(s.lastSeenAt) > config.sessionHours * 3600_000;
+    const old = !s.expiresAt && now - new Date(s.createdAt) > ABSOLUTE_SESSION_MS;
+    if (!user || user.disabledAt || idle || old || accessEnded(user)) {
       delete data.sessions[h];
       store.save();
       return null;
@@ -320,10 +352,12 @@ export function createApp({ config, log = console } = {}) {
 
   const startScan = async (project, user, previousScanId) => {
     if (runningScansFor(project.id).length) throw new HttpError(409, 'A scan is already running for this project.');
-    if (running.size >= config.maxConcurrentScans) throw new HttpError(429, `The server is already running ${running.size} scans. Try again when one finishes.`);
+    // Lab runs have their own cap, so anonymous demo visitors can't use up the slots for real scans.
+    const busy = [...running.keys()].filter((id) => data.scans[id]).length;
+    if (busy >= config.maxConcurrentScans) throw new HttpError(429, `The server is already running ${busy} scans. Try again when one finishes.`);
     const problems = preflight(project);
     if (problems.length) throw new HttpError(422, `Scan blocked: ${problems.join(' ')}`);
-    for (const entry of project.authorization.allowedHosts.filter((h) => !isLocalEntry(h))) {
+    for (const entry of project.authorization.allowedHosts.filter((h) => !isLocalEntry(h, project))) {
       const r = await verifyEntry(project, entry);
       if (!r.ok) throw new HttpError(422, `Scan blocked: re-verification of "${entry}" failed. ${r.error}`);
     }
@@ -350,7 +384,12 @@ export function createApp({ config, log = console } = {}) {
       if (now - new Date(t.expiresAt) > 7 * 86400_000) { delete data.tokens[h]; changed = true; }
     }
     for (const [h, s] of Object.entries(data.sessions)) {
-      if (now - new Date(s.createdAt) > ABSOLUTE_SESSION_MS) { delete data.sessions[h]; changed = true; }
+      if (s.expiresAt ? now > new Date(s.expiresAt) : now - new Date(s.createdAt) > ABSOLUTE_SESSION_MS) { delete data.sessions[h]; changed = true; }
+    }
+    // Scans stop when the access of whoever started them ends.
+    for (const id of running.keys()) {
+      const starter = data.users[data.scans[id]?.startedBy?.userId];
+      if (starter && accessEnded(starter)) Object.assign(running.get(id), { stopReason: 'The access of the user who started this scan has ended.', userStopped: true });
     }
     if (changed) store.saveNow();
   };
@@ -379,12 +418,18 @@ export function createApp({ config, log = console } = {}) {
     if (why) throw bad(why);
   };
 
+  const labEnabled = () => {
+    if (!config.lab) throw notFound('The demo lab is turned off on this server.');
+  };
+
   // ----- routes -----
   // opts: public (no session), admin, verified (email verified), limit (body bytes)
   const routes = [
     // --- health ---
-    ['GET', /^\/healthz$/, async () => ({ ok: true, version: VERSION }), { public: true, raw: true }],
-    ['GET', /^\/readyz$/, async () => {
+    // /healthz and /readyz suit Docker and Kubernetes. Google-hosted platforms (Cloud Run, which Replit
+    // deployments use) answer /healthz themselves and never forward it, so /api/healthz is the one to use there.
+    ['GET', /^\/(?:api\/)?healthz$/, async () => ({ ok: true, version: VERSION }), { public: true, raw: true }],
+    ['GET', /^\/(?:api\/)?readyz$/, async () => {
       store.saveNow();
       return { ok: true, users: userCount(), runningScans: running.size };
     }, { public: true, raw: true }],
@@ -392,7 +437,7 @@ export function createApp({ config, log = console } = {}) {
     // --- auth ---
     ['GET', /^\/api\/auth\/me$/, async ({ req }) => {
       const s = sessionFor(req);
-      return { user: publicUser(s?.user), setupRequired: !hasUsers(), signupOpen: config.signup === 'open', mailMode: mailer.mode, env: config.env, version: VERSION };
+      return { user: publicUser(s?.user), setupRequired: !hasUsers(), lab: config.lab, mailMode: mailer.mode, env: config.env, version: VERSION };
     }, { public: true }],
     ['POST', /^\/api\/auth\/setup$/, async ({ req, res, body }) => {
       rate(req, 'setup', 10, 15 * 60_000);
@@ -414,32 +459,12 @@ export function createApp({ config, log = console } = {}) {
       store.saveNow();
       return { user: publicUser(u) };
     }, { public: true, limit: 16_384 }],
-    ['POST', /^\/api\/auth\/signup$/, async ({ req, body }) => {
-      rate(req, 'signup', 5, 3600_000);
-      if (config.signup !== 'open') throw new HttpError(403, 'Sign-up is closed on this server. Ask an administrator for an invitation.');
-      const email = normalizeEmail(body.email);
-      if (!validEmail(email)) throw bad('Enter a valid email address.');
-      if (!String(body.name || '').trim()) throw bad('Enter your name.');
-      checkNewPassword(body.password, email);
-      const existing = findUserByEmail(email);
-      const message = 'Check your email for a link to verify your address, then sign in.';
-      if (existing) {
-        // Same answer either way, so sign-up can't be used to discover who has an account.
-        await sendMail(email, 'Your breakAPI account', `Someone tried to create a breakAPI account with this address, which already has one.\n\nIf it was you, sign in at ${linkBase()}/#/login, or reset your password at ${linkBase()}/#/forgot.\n`);
-        return { ok: true, message };
-      }
-      const u = newUser({ email, name: body.name, role: 'user', password: body.password, verified: false });
-      sysAudit('user.signed_up', { userId: u.id });
-      await sendVerification(u);
-      store.saveNow();
-      return { ok: true, message };
-    }, { public: true, limit: 16_384 }],
     ['POST', /^\/api\/auth\/login$/, async ({ req, res, body }) => {
       const email = normalizeEmail(body.email);
       rate(req, 'login-ip', 30, 15 * 60_000);
       rate(req, 'login-account', 8, 15 * 60_000, email);
       const u = findUserByEmail(email);
-      const generic = new HttpError(401, 'Email or password is incorrect, or the account is not active.');
+      const generic = new HttpError(401, 'Those details aren\'t right, or the account is not active. Invited users also need their setup token.');
       if (!u || !u.passwordHash) {
         burnTime(body.password);
         throw generic;
@@ -449,6 +474,14 @@ export function createApp({ config, log = console } = {}) {
         store.save();
         throw generic;
       }
+      // An issued account needs its setup token on every sign-in, as well as the password.
+      if (accessLimited(u) && sha256(String(body.setupToken || '').trim()) !== u.access.tokenHash) {
+        sysAudit('user.login_failed', { userId: u.id, ip: clientIp(req) });
+        store.save();
+        throw generic;
+      }
+      const ended = accessEnded(u);
+      if (ended) throw new HttpError(403, ended);
       limiter.reset(`login-account:${clientIp(req)}:${email}`);
       // Rotate: a fresh session id on every login (no session fixation).
       const prior = parseCookies(req.headers.cookie)[SESSION_COOKIE];
@@ -515,27 +548,6 @@ export function createApp({ config, log = console } = {}) {
       store.saveNow();
       return { ok: true };
     }, { public: true, limit: 16_384 }],
-    ['GET', /^\/api\/auth\/invite\/([\w-]+)$/, async ({ m }) => {
-      const t = peekToken('invite', m[1]);
-      if (!t) throw new HttpError(410, 'This invitation is invalid, already used or expired. Ask an administrator for a new one.');
-      return { email: t.email, name: data.users[t.userId]?.name || '' };
-    }, { public: true }],
-    ['POST', /^\/api\/auth\/invite\/accept$/, async ({ req, res, body }) => {
-      const t = peekToken('invite', body.token);
-      if (!t) throw new HttpError(410, 'This invitation is invalid, already used or expired. Ask an administrator for a new one.');
-      const u = data.users[t.userId];
-      if (!u || u.disabledAt) throw new HttpError(410, 'This invitation no longer matches an active account.');
-      if (!String(body.name || '').trim()) throw bad('Enter your name.');
-      checkNewPassword(body.password, u.email);
-      consumeToken('invite', body.token);
-      u.name = String(body.name).trim().slice(0, 120);
-      u.passwordHash = hashPassword(body.password);
-      u.emailVerifiedAt = nowIso(); // the invite link went to this inbox
-      sysAudit('user.invite_accepted', { userId: u.id });
-      startSession(req, res, u);
-      store.saveNow();
-      return { user: publicUser(u) };
-    }, { public: true, limit: 16_384 }],
     ['POST', /^\/api\/auth\/password$/, async ({ req, body, user, session }) => {
       rate(req, 'password', 10, 3600_000, user.id);
       if (!verifyPassword(body.current, user.passwordHash)) throw bad('Your current password is not correct.');
@@ -565,25 +577,30 @@ export function createApp({ config, log = console } = {}) {
     }), { admin: true }],
     ['GET', /^\/api\/admin\/users$/, async () => Object.values(data.users)
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-      .map((u) => ({ ...publicUser(u), projects: Object.values(data.projects).filter((p) => memberRole(p, u)).length })), { admin: true }],
+      .map((u) => ({ ...publicUser(u), accessEnded: accessEnded(u), projects: Object.values(data.projects).filter((p) => memberRole(p, u)).length })), { admin: true }],
     ['POST', /^\/api\/admin\/users$/, async ({ body, user }) => {
       const email = normalizeEmail(body.email);
       if (!validEmail(email)) throw bad('Enter a valid email address.');
       if (findUserByEmail(email)) throw new HttpError(409, 'A user with that email already exists.');
-      const u = newUser({ email, name: body.name, role: body.role, verified: false });
-      const raw = issueToken('invite', { userId: u.id, email: u.email });
-      await sendMail(u.email, 'You’re invited to breakAPI', `${user.name || user.email} invited you to breakAPI${u.role === 'admin' ? ' as an administrator' : ''}.\n\nSet your name and password here (the link works once and expires in 72 hours):\n\n${linkBase()}/#/invite/${raw}\n`);
-      sysAudit('user.invited', { userId: u.id, role: u.role, by: user.email });
+      if (body.password) checkNewPassword(body.password, email);
+      const u = newUser({ email, name: body.name, role: 'user', verified: true });
+      const credentials = issueAccess(u, body.password, user.email);
+      sysAudit('user.issued', { userId: u.id, by: user.email });
       store.saveNow();
-      return publicUser(u);
-    }, { admin: true }],
+      return { user: publicUser(u), credentials };
+    }, { admin: true, limit: 16_384 }],
     ['PATCH', /^\/api\/admin\/users\/(\w+)$/, async ({ m, body, user }) => {
       const u = data.users[m[1]];
       if (!u) throw notFound('User not found');
       if ('role' in body) {
         const role = body.role === 'admin' ? 'admin' : 'user';
         if (u.role === 'admin' && role !== 'admin' && !adminsLeft(u.id)) throw bad('There must be at least one active administrator.');
-        if (u.role !== role) sysAudit('user.role_changed', { userId: u.id, role, by: user.email });
+        if (u.role !== role) {
+          sysAudit('user.role_changed', { userId: u.id, role, by: user.email });
+          // Sign-in rules differ by role, so start again: an admin has no time limit, and a former admin needs issuing.
+          delete u.access;
+          endSessions((s) => s.userId === u.id);
+        }
         u.role = role;
       }
       if ('disabled' in body) {
@@ -603,21 +620,15 @@ export function createApp({ config, log = console } = {}) {
       store.saveNow();
       return publicUser(u);
     }, { admin: true }],
-    ['POST', /^\/api\/admin\/users\/(\w+)\/resend$/, async ({ m, user }) => {
+    ['POST', /^\/api\/admin\/users\/(\w+)\/reissue$/, async ({ m, body, user }) => {
       const u = data.users[m[1]];
       if (!u) throw notFound('User not found');
-      if (!u.passwordHash) {
-        revokeTokens((t) => t.type === 'invite' && t.userId === u.id);
-        const raw = issueToken('invite', { userId: u.id, email: u.email });
-        await sendMail(u.email, 'You’re invited to breakAPI', `${user.name || user.email} invited you to breakAPI.\n\nSet your name and password here (the link works once and expires in 72 hours):\n\n${linkBase()}/#/invite/${raw}\n`);
-      } else if (!u.emailVerifiedAt) {
-        await sendVerification(u);
-      } else {
-        throw bad('This user is already active and verified.');
-      }
+      if (u.role === 'admin') throw bad('Administrators sign in without a setup token, so there is nothing to issue.');
+      const credentials = issueAccess(u, body.password, user.email);
+      sysAudit('user.reissued', { userId: u.id, by: user.email });
       store.saveNow();
-      return { ok: true };
-    }, { admin: true }],
+      return { user: publicUser(u), credentials };
+    }, { admin: true, limit: 16_384 }],
     ['DELETE', /^\/api\/admin\/users\/(\w+)$/, async ({ m, user }) => {
       const u = data.users[m[1]];
       if (!u) throw notFound('User not found');
@@ -652,6 +663,30 @@ export function createApp({ config, log = console } = {}) {
       return { ok: true };
     }, { admin: true }],
     ['GET', /^\/api\/admin\/audit$/, async () => data.systemAudit.slice(-500).reverse().map((e) => ({ ...e, email: e.userId ? data.users[e.userId]?.email : undefined })), { admin: true }],
+
+    // --- demo lab: public, fixed examples against a built-in API. Only an example id is ever read from a request. ---
+    ['GET', /^\/api\/lab$/, async () => {
+      labEnabled();
+      return { examples: lab.examples() };
+    }, { public: true }],
+    ['POST', /^\/api\/lab\/runs$/, async ({ req, body }) => {
+      labEnabled();
+      rate(req, 'lab', 20, 15 * 60_000);
+      const r = lab.start(String(body.exampleId || ''));
+      if (r.error) throw new HttpError(r.error, r.message);
+      return r;
+    }, { public: true, limit: 1024 }],
+    ['GET', /^\/api\/lab\/runs\/([\w-]+)$/, async ({ m }) => {
+      labEnabled();
+      const r = lab.view(m[1]);
+      if (!r) throw notFound('This run is no longer available. Runs are kept for an hour.');
+      return r;
+    }, { public: true }],
+    ['POST', /^\/api\/lab\/runs\/([\w-]+)\/stop$/, async ({ m }) => {
+      labEnabled();
+      if (!lab.stop(m[1])) throw notFound('This run is no longer available.');
+      return { ok: true };
+    }, { public: true, limit: 1024 }],
 
     // --- authorization confirmation by the authorizer (link from email; no account needed) ---
     ['GET', /^\/api\/confirm\/([\w-]+)$/, async ({ m }) => {
@@ -747,7 +782,7 @@ export function createApp({ config, log = console } = {}) {
       ownerOnly(p, user);
       const u = findUserByEmail(body.email);
       // Only existing, active users can be added; nothing is revealed about other addresses.
-      if (!u || u.disabledAt) throw bad('No active breakAPI user has that email. Ask an administrator to invite them first.');
+      if (!u || u.disabledAt) throw bad('No active breakAPI user has that email. Ask an administrator to issue them an account first.');
       if (memberRole(p, u)) throw bad('That user is already a member.');
       p.members.push({ userId: u.id, role: 'member', addedAt: nowIso() });
       audit(p, 'member.added', { email: u.email, by: user.email });
@@ -1074,10 +1109,16 @@ export function createApp({ config, log = console } = {}) {
         return res.end(readFileSync(join(PUBLIC_DIR, file)));
       }
       let m;
+      if (req.method === 'GET' && config.lab && (m = url.pathname.match(/^\/reports\/lab\/([\w-]+)\/(\d+)$/))) {
+        const r = lab.reportData(m[1], Number(m[2]));
+        if (!r) throw notFound('This run is no longer available.');
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+        return res.end(renderReport(r.project, r.scan));
+      }
       if (req.method === 'GET' && (m = url.pathname.match(/^\/reports\/(\w+)$/))) {
         const s = sessionFor(req);
         if (!s) {
-          res.writeHead(302, { location: '/#/login' });
+          res.writeHead(302, { location: '/#/' });
           return res.end();
         }
         userId = s.user.id;
@@ -1125,6 +1166,7 @@ export function createApp({ config, log = console } = {}) {
   /** Stops running scans and flushes the store; used for graceful shutdown and tests. */
   const shutdown = async (reason = 'The breakAPI server is shutting down.') => {
     for (const ctl of running.values()) ctl.stopReason ??= reason;
+    lab.shutdown();
     const deadline = Date.now() + 5000;
     while (running.size && Date.now() < deadline) await new Promise((r) => setTimeout(r, 100));
     clearInterval(sweeper);
@@ -1136,5 +1178,5 @@ export function createApp({ config, log = console } = {}) {
     clearInterval(sweeper);
     limiter.stop();
   });
-  return { server, store, config, mailer, key, setupToken: () => setupToken, shutdown, decrypt: (blob) => decrypt(key, blob) };
+  return { server, store, config, mailer, key, setupToken: () => setupToken, lab, shutdown, decrypt: (blob) => decrypt(key, blob) };
 }

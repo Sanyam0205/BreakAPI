@@ -1,4 +1,5 @@
-// A deliberately vulnerable API for trying breakAPI locally. NEVER deploy this.
+// A deliberately vulnerable API for trying breakAPI locally, and the target of the built-in demo lab,
+// which binds it to loopback only. NEVER expose it to a network.
 // Every weakness is marked VULNERABLE.
 import http from 'node:http';
 import { createHmac } from 'node:crypto';
@@ -6,18 +7,6 @@ import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 const SECRET = 'secret'; // VULNERABLE: guessable signing key
-
-const users = {
-  1: { id: 1, name: 'Alice', email: 'alice@demo.test', role: 'user' },
-  2: { id: 2, name: 'Bob', email: 'bob@demo.test', role: 'user' },
-  3: { id: 3, name: 'Root', email: 'root@demo.test', role: 'admin' },
-};
-const orders = { 1: [{ id: 101, item: 'Keyboard' }], 2: [{ id: 201, item: 'Monitor' }] };
-const orderPrice = 49.9; // the server-side price of the demo item
-let nextUserId = 100;
-let nextOrderId = 5000;
-const recentOrders = new Map();
-const invoices = { 1: { id: 1, owner: 1, total: 120.5 }, 2: { id: 2, owner: 2, total: 89 } };
 
 export const stats = { requests: 0, deletes: 0, writes: 0, signups: 0, orders: 0, logins: 0 };
 
@@ -59,9 +48,26 @@ export function demoTokens() {
  *   verifyToken  DEMO_VERIFY_TOKEN   serve it at /.well-known/breakapi-verification.txt (a string, or a function returning one)
  */
 export function createDemoServer({ fixed = false, rateLimit = 0, verifyToken = '' } = {}) {
+  // Each server has its own data, so one run's signups and orders never show up in another.
+  const users = {
+    1: { id: 1, name: 'Alice', email: 'alice@demo.test', role: 'user' },
+    2: { id: 2, name: 'Bob', email: 'bob@demo.test', role: 'user' },
+    3: { id: 3, name: 'Root', email: 'root@demo.test', role: 'admin' },
+  };
+  const orders = { 1: [{ id: 101, item: 'Keyboard' }], 2: [{ id: 201, item: 'Monitor' }] };
+  const orderPrice = 49.9; // the server-side price of the demo item
+  let nextUserId = 100;
+  let nextOrderId = 5000;
+  const recentOrders = new Map();
+  const invoices = { 1: { id: 1, owner: 1, total: 120.5 }, 2: { id: 2, owner: 2, total: 89 } };
   const hits = new Map();
-  return http.createServer((req, res) => {
+  // What this target actually received, counted on its side rather than the scanner's.
+  const seen = { requests: 0, writes: 0, deletes: 0 };
+  const server = http.createServer((req, res) => {
     stats.requests++;
+    seen.requests++;
+    if (['POST', 'PUT', 'PATCH'].includes(req.method)) seen.writes++;
+    if (req.method === 'DELETE') seen.deletes++;
     const url = new URL(req.url, 'http://demo');
     const headers = { 'x-powered-by': 'DemoServer/1.0', 'content-type': 'application/json' }; // VULNERABLE: tech disclosure
     if (req.headers.origin && (!fixed || req.headers.origin === 'https://app.demo.test')) {
@@ -197,6 +203,8 @@ export function createDemoServer({ fixed = false, rateLimit = 0, verifyToken = '
     }
     return send(404, { error: 'not found' });
   });
+  server.seen = seen;
+  return server;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

@@ -52,6 +52,7 @@ async function startApp(overrides = {}) {
 
 let env;
 let admin;
+let umaToken;
 
 before(async () => {
   env = await startApp();
@@ -112,32 +113,28 @@ test('login is rate-limited per account', async () => {
   assert.ok(Number(last.headers.get('retry-after')) > 0);
 });
 
-test('admins invite users; invitees set a password; users cannot use admin routes', async () => {
-  const inv = await admin.call('POST', '/api/admin/users', { email: 'uma@example.com', role: 'user' });
+test('admins issue users; users cannot use admin routes', async () => {
+  const inv = await admin.call('POST', '/api/admin/users', { email: 'uma@example.com', name: 'Uma User', password: PASSWORD });
   assert.equal(inv.status, 200);
-  assert.equal(inv.body.invited, true);
+  assert.equal(inv.body.user.role, 'user');
+  assert.equal(inv.body.user.emailVerified, true);
+  umaToken = inv.body.credentials.setupToken;
   assert.equal((await admin.call('POST', '/api/admin/users', { email: 'uma@example.com' })).status, 409);
-  const token = env.lastLink('invite');
-  assert.ok(token, 'invite email sent with a link');
+  assert.equal(env.outbox().length, 0, 'the admin shares the details; nothing is emailed');
   const u = env.client();
-  assert.equal((await u.call('GET', `/api/auth/invite/${token}`)).body.email, 'uma@example.com');
-  assert.equal((await u.call('POST', '/api/auth/invite/accept', { token, name: 'Uma User', password: 'tooshort' })).status, 400);
-  const acc = await u.call('POST', '/api/auth/invite/accept', { token, name: 'Uma User', password: PASSWORD });
-  assert.equal(acc.status, 200);
-  assert.equal(acc.body.user.role, 'user');
-  assert.equal(acc.body.user.emailVerified, true);
-  assert.equal((await u.call('POST', '/api/auth/invite/accept', { token, name: 'Again', password: PASSWORD })).status, 410, 'invite links work once');
+  assert.equal((await u.call('POST', '/api/auth/login', { email: 'uma@example.com', password: PASSWORD, setupToken: umaToken })).status, 200);
   for (const path of ['/api/admin/users', '/api/admin/overview', '/api/admin/audit']) {
     assert.equal((await u.call('GET', path)).status, 403, path);
   }
   const list = await admin.call('GET', '/api/admin/users');
-  assert.ok(list.body.some((x) => x.email === 'uma@example.com' && !x.invited));
-  assert.ok(!JSON.stringify(list.body).includes('passwordHash'));
+  assert.ok(list.body.some((x) => x.email === 'uma@example.com' && x.accessExpiresAt && !x.accessEnded));
+  const leaked = JSON.stringify(list.body);
+  assert.ok(!leaked.includes('passwordHash') && !leaked.includes('tokenHash') && !leaked.includes(umaToken));
 });
 
 test('projects are private to their members; owners manage membership', async () => {
   const uma = env.client();
-  await uma.call('POST', '/api/auth/login', { email: 'uma@example.com', password: PASSWORD });
+  await uma.call('POST', '/api/auth/login', { email: 'uma@example.com', password: PASSWORD, setupToken: umaToken });
   const { body: p } = await admin.call('POST', '/api/projects', { name: 'admin-only project' });
   assert.equal((await uma.call('GET', `/api/projects/${p.id}`)).status, 404, 'non-members get 404, not 403');
   assert.ok(!(await uma.call('GET', '/api/projects')).body.some((x) => x.id === p.id));
@@ -232,39 +229,38 @@ test('forgot/reset: same answer for unknown accounts; reset signs out other sess
   const known = await c.call('POST', '/api/auth/forgot', { email: 'uma@example.com' });
   assert.equal(unknown.body.message, known.body.message);
   const uma = env.client();
-  await uma.call('POST', '/api/auth/login', { email: 'uma@example.com', password: PASSWORD });
+  await uma.call('POST', '/api/auth/login', { email: 'uma@example.com', password: PASSWORD, setupToken: umaToken });
   const token = env.lastLink('reset');
   assert.equal((await c.call('POST', '/api/auth/reset', { token, password: 'weak' })).status, 400);
   assert.equal((await c.call('POST', '/api/auth/reset', { token, password: 'a-brand-new-passphrase' })).status, 200);
   assert.equal((await c.call('POST', '/api/auth/reset', { token, password: 'another-new-passphrase' })).status, 410);
   assert.equal((await uma.call('GET', '/api/projects')).status, 401, 'existing sessions ended');
-  assert.equal((await uma.call('POST', '/api/auth/login', { email: 'uma@example.com', password: PASSWORD })).status, 401);
-  assert.equal((await uma.call('POST', '/api/auth/login', { email: 'uma@example.com', password: 'a-brand-new-passphrase' })).status, 200);
+  assert.equal((await uma.call('POST', '/api/auth/login', { email: 'uma@example.com', password: PASSWORD, setupToken: umaToken })).status, 401);
+  assert.equal((await uma.call('POST', '/api/auth/login', { email: 'uma@example.com', password: 'a-brand-new-passphrase', setupToken: umaToken })).status, 200);
   assert.equal((await uma.call('POST', '/api/auth/password', { current: 'wrong-current-pass', password: 'yet-another-passphrase' })).status, 400);
-  const other = env.client();
-  await other.call('POST', '/api/auth/login', { email: 'uma@example.com', password: 'a-brand-new-passphrase' });
   assert.equal((await uma.call('POST', '/api/auth/password', { current: 'a-brand-new-passphrase', password: PASSWORD })).status, 200);
-  assert.equal((await uma.call('GET', '/api/projects')).status, 200, 'the device that changed the password stays signed in');
-  assert.equal((await other.call('GET', '/api/projects')).status, 401, 'other devices are signed out');
+  assert.equal((await uma.call('GET', '/api/projects')).status, 200, 'changing the password keeps this session signed in');
   const sessions = (await uma.call('GET', '/api/auth/sessions')).body;
   assert.equal(sessions.filter((x) => x.current).length, 1);
 });
 
 test('admins disable users (sessions end), and the last admin cannot be removed', async () => {
   const uma = env.client();
-  await uma.call('POST', '/api/auth/login', { email: 'uma@example.com', password: PASSWORD });
+  await uma.call('POST', '/api/auth/login', { email: 'uma@example.com', password: PASSWORD, setupToken: umaToken });
   const users = (await admin.call('GET', '/api/admin/users')).body;
   const umaId = users.find((x) => x.email === 'uma@example.com').id;
   const adaId = users.find((x) => x.email === 'ada@example.com').id;
   assert.equal((await admin.call('PATCH', `/api/admin/users/${umaId}`, { disabled: true })).status, 200);
   assert.equal((await uma.call('GET', '/api/projects')).status, 401);
-  assert.equal((await uma.call('POST', '/api/auth/login', { email: 'uma@example.com', password: PASSWORD })).status, 401);
+  assert.equal((await uma.call('POST', '/api/auth/login', { email: 'uma@example.com', password: PASSWORD, setupToken: umaToken })).status, 401);
   assert.equal((await admin.call('PATCH', `/api/admin/users/${adaId}`, { role: 'user' })).status, 400, 'last admin keeps the role');
   assert.equal((await admin.call('PATCH', `/api/admin/users/${adaId}`, { disabled: true })).status, 400);
   assert.equal((await admin.call('DELETE', `/api/admin/users/${adaId}`)).status, 400);
   assert.equal((await admin.call('PATCH', `/api/admin/users/${umaId}`, { disabled: false })).status, 200);
-  assert.equal((await uma.call('POST', '/api/auth/login', { email: 'uma@example.com', password: PASSWORD })).status, 200);
+  assert.equal((await uma.call('POST', '/api/auth/login', { email: 'uma@example.com', password: PASSWORD, setupToken: umaToken })).status, 200);
   assert.equal((await admin.call('PATCH', `/api/admin/users/${umaId}`, { role: 'admin' })).status, 200);
+  assert.equal((await uma.call('GET', '/api/projects')).status, 401, 'a role change ends their sessions');
+  assert.equal((await uma.call('POST', '/api/auth/login', { email: 'uma@example.com', password: PASSWORD })).status, 200, 'admins need no setup token');
   assert.equal((await uma.call('GET', '/api/admin/overview')).status, 200, 'promoted user can use admin routes');
   const audit = (await admin.call('GET', '/api/admin/audit')).body;
   assert.ok(audit.some((e) => e.event === 'user.disabled') && audit.some((e) => e.event === 'user.role_changed'));
@@ -283,28 +279,29 @@ test('cross-origin writes and prototype pollution are refused', async () => {
   assert.equal({}.polluted, undefined);
 });
 
-test('open sign-up requires email verification before any testing', async () => {
-  const open = await startApp({ signup: 'open' });
+test('an unverified account cannot test until its email is verified; sign-up and invite links are gone', async () => {
+  const e = await startApp();
   try {
-    const setup = open.client();
-    await setup.call('POST', '/api/auth/setup', { setupToken: open.app.setupToken(), name: 'Root', email: 'root@example.com', password: PASSWORD });
-    const c = open.client();
-    const s = await c.call('POST', '/api/auth/signup', { name: 'Sid Signup', email: 'sid@example.com', password: PASSWORD });
-    assert.equal(s.status, 200);
-    const dup = await c.call('POST', '/api/auth/signup', { name: 'Sid Again', email: 'sid@example.com', password: PASSWORD });
-    assert.equal(dup.body.message, s.body.message, 'no enumeration through sign-up');
-    assert.equal((await c.call('POST', '/api/auth/login', { email: 'sid@example.com', password: PASSWORD })).status, 200);
+    const root = e.client();
+    await root.call('POST', '/api/auth/setup', { setupToken: e.app.setupToken(), name: 'Root', email: 'root@example.com', password: PASSWORD });
+    const { body: issued } = await root.call('POST', '/api/admin/users', { email: 'sid@example.com', name: 'Sid', password: PASSWORD });
+    const c = e.client();
+    await c.call('POST', '/api/auth/login', { email: 'sid@example.com', password: PASSWORD, setupToken: issued.credentials.setupToken });
+    // Accounts from before this rule can still be unverified.
+    Object.values(e.app.store.data.users).find((u) => u.email === 'sid@example.com').emailVerifiedAt = null;
     const blocked = await c.call('POST', '/api/projects', { name: 'too early' });
     assert.equal(blocked.status, 403);
     assert.equal(blocked.body.code, 'email_unverified');
-    const token = open.lastLink('verify');
+    assert.equal((await c.call('POST', '/api/auth/resend-verification')).status, 200);
+    const token = e.lastLink('verify');
     assert.equal((await c.call('POST', '/api/auth/verify', { token })).status, 200);
     assert.equal((await c.call('POST', '/api/auth/verify', { token })).status, 410);
     assert.equal((await c.call('POST', '/api/projects', { name: 'now ok' })).status, 200);
+    assert.equal((await e.client().call('POST', '/api/auth/signup', { name: 'N', email: 'n@example.com', password: PASSWORD })).status, 404);
+    assert.equal((await e.client().call('POST', '/api/auth/invite/accept', { token: 'x', name: 'N', password: PASSWORD })).status, 404);
   } finally {
-    open.stop();
+    e.stop();
   }
-  assert.equal((await env.client().call('POST', '/api/auth/signup', { name: 'N', email: 'n@example.com', password: PASSWORD })).status, 403, 'sign-up is closed by default');
 });
 
 test('production config: refuses unsafe settings and local or private targets', async () => {
@@ -361,10 +358,12 @@ test('password policy and health endpoints', async () => {
   assert.ok(passwordProblem('aaaaaaaaaaaaaaaa'));
   assert.ok(passwordProblem('ada-lovelace-2026', 'ada-lovelace@example.com'));
   assert.equal(passwordProblem('violet-otter-harbour-9'), null);
-  const h = await fetch(`${env.base}/healthz`);
-  assert.equal(h.status, 200);
-  assert.equal((await h.json()).ok, true);
-  assert.equal((await fetch(`${env.base}/readyz`)).status, 200);
+  for (const path of ['/healthz', '/api/healthz']) {
+    const h = await fetch(`${env.base}${path}`);
+    assert.equal(h.status, 200, path);
+    assert.equal((await h.json()).ok, true);
+  }
+  for (const path of ['/readyz', '/api/readyz']) assert.equal((await fetch(`${env.base}${path}`)).status, 200, path);
   const page = await fetch(`${env.base}/`);
   assert.match(page.headers.get('content-security-policy'), /object-src 'none'/);
 });
@@ -418,7 +417,7 @@ test('SMTP delivery speaks the protocol (AUTH, MAIL, RCPT, DATA with dot-stuffin
 });
 
 test('owners can always delete their own project, verified or not; members can only leave', async () => {
-  const open = await startApp({ signup: 'open' });
+  const open = await startApp();
   try {
     const root = open.client();
     await root.call('POST', '/api/auth/setup', { setupToken: open.app.setupToken(), name: 'Root', email: 'root@example.com', password: PASSWORD });
@@ -428,10 +427,8 @@ test('owners can always delete their own project, verified or not; members can o
 
     // A user whose email is not verified yet can still delete what they own (and sees a clear error otherwise).
     const c = open.client();
-    await c.call('POST', '/api/auth/signup', { name: 'Sid', email: 'sid@example.com', password: PASSWORD });
-    await c.call('POST', '/api/auth/login', { email: 'sid@example.com', password: PASSWORD });
-    assert.equal((await c.call('POST', '/api/projects', { name: 'too early' })).status, 403);
-    await c.call('POST', '/api/auth/verify', { token: open.lastLink('verify') });
+    const { body: issued } = await root.call('POST', '/api/admin/users', { email: 'sid@example.com', name: 'Sid', password: PASSWORD });
+    await c.call('POST', '/api/auth/login', { email: 'sid@example.com', password: PASSWORD, setupToken: issued.credentials.setupToken });
     const { body: q } = await c.call('POST', '/api/projects', { name: 'sid project' });
     // simulate the verification being lost: delete must still work
     const sid = Object.values(open.app.store.data.users).find((u) => u.email === 'sid@example.com');
@@ -466,8 +463,8 @@ test('projects nobody owns (from before accounts) can be claimed or deleted by a
     assert.deepEqual(list.map((o) => o.id), ['prj_legacy3']);
     assert.ok(!JSON.stringify(list).includes('authorization'), 'admins see only name, address and scan count');
     const user = e.client();
-    await admin.call('POST', '/api/admin/users', { email: 'uma@example.com' });
-    await user.call('POST', '/api/auth/invite/accept', { token: e.lastLink('invite'), name: 'Uma', password: PASSWORD });
+    const { body: issued } = await admin.call('POST', '/api/admin/users', { email: 'uma@example.com', name: 'Uma', password: PASSWORD });
+    await user.call('POST', '/api/auth/login', { email: 'uma@example.com', password: PASSWORD, setupToken: issued.credentials.setupToken });
     assert.equal((await user.call('GET', '/api/admin/orphans')).status, 403);
     assert.equal((await user.call('POST', '/api/admin/orphans/prj_legacy3/claim')).status, 403);
     assert.equal((await user.call('GET', '/api/projects/prj_legacy3')).status, 404, 'nobody can open it meanwhile');
@@ -483,11 +480,11 @@ test('projects nobody owns (from before accounts) can be claimed or deleted by a
   }
 });
 
-test('behind a frontend proxy on another domain: origin, cookies, client IP and emailed links', async () => {
-  const site = 'https://breakapi.netlify.app';
+test('behind a reverse proxy on a public domain: origin, cookies, client IP and emailed links', async () => {
+  const site = 'https://breakapi.example.com';
   const e = await startApp({ publicUrl: site, trustProxy: true });
   try {
-    // What the Netlify proxy forwards: the browser's Origin, and the visitor's IP / scheme in X-Forwarded-*.
+    // What the proxy forwards: the browser's Origin, and the visitor's IP / scheme in X-Forwarded-*.
     const proxied = { origin: site, 'x-forwarded-proto': 'https', 'x-forwarded-for': '203.0.113.9, 10.0.0.1' };
     const a = e.client();
     const setup = await a.call('POST', '/api/auth/setup', { setupToken: e.app.setupToken(), name: 'Ada', email: 'ada@example.com', password: PASSWORD }, { headers: proxied });
@@ -502,9 +499,9 @@ test('behind a frontend proxy on another domain: origin, cookies, client IP and 
     assert.equal((await a.call('POST', '/api/projects', { name: 'x' }, { headers: { ...proxied, origin: 'https://evil.example' } })).status, 403);
     assert.equal((await a.call('POST', '/api/projects', { name: 'ok' }, { headers: proxied })).status, 200);
 
-    // Links in email point at the public (Netlify) address, never at the backend's own host name.
-    await a.call('POST', '/api/admin/users', { email: 'uma@example.com' }, { headers: proxied });
-    assert.ok(e.outbox().join('\n').includes(`${site}/#/invite/`), 'invitation link uses the public URL');
+    // Links in email point at the public address, never at the backend's own host name.
+    await a.call('POST', '/api/auth/forgot', { email: 'ada@example.com' }, { headers: proxied });
+    assert.ok(e.outbox().join('\n').includes(`${site}/#/reset/`), 'reset link uses the public URL');
     assert.ok(!e.outbox().join('\n').includes('127.0.0.1'));
   } finally {
     e.stop();

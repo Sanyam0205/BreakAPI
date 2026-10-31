@@ -2,10 +2,10 @@
 .github
 .impeccable
 data
-demo
 test
 testdata
 node_modules
 *.md
+!EXAMPLES.md
 .env
 .env.*

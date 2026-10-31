@@ -1,5 +1,5 @@
 import { redactHeaders, nowIso, sleep } from './util.js';
-import { HARD_LIMITS, matchingHost, isLocalEntry, entryVerified, undertakingCurrent, authorizationConfirmed } from './scope.js';
+import { HARD_LIMITS, matchingHost, isLocalEntry, entryVerified, undertakingCurrent, authorizationConfirmed, targetConfig } from './scope.js';
 import { safeFetch, hostRefusal } from './netguard.js';
 
 /** Thrown when the scan must stop: user stop, budget, window, expiry or a stop condition. */
@@ -128,9 +128,10 @@ export class GuardedClient {
     for (const [k, v] of Object.entries(query || {})) url.searchParams.set(k, v);
     const entry = /^https?:$/.test(url.protocol) ? matchingHost(this.authorization, url.href) : undefined;
     if (!entry) return this.skip(`${url.host} is out of scope`, purpose);
-    const refusal = hostRefusal(entry);
+    const network = targetConfig(this.project);
+    const refusal = hostRefusal(entry, network);
     if (refusal) return this.skip(refusal, purpose);
-    if (!isLocalEntry(entry) && !entryVerified(this.project, entry)) return this.skip(`control of ${entry} is not verified`, purpose);
+    if (!isLocalEntry(entry, this.project) && !entryVerified(this.project, entry)) return this.skip(`control of ${entry} is not verified`, purpose);
 
     const rps = burst ? this.burstRps : this.rps;
     const wait = this.nextAt - Date.now();
@@ -156,7 +157,7 @@ export class GuardedClient {
     let res;
     try {
       // Guarded DNS: the resolved address is checked at connect time, so it cannot be rebound to a forbidden one.
-      res = await safeFetch(url, { method: m, headers: h, body: payload, timeoutMs: this.controls.timeoutMs, maxBody: MAX_BODY });
+      res = await safeFetch(url, { method: m, headers: h, body: payload, timeoutMs: this.controls.timeoutMs, maxBody: MAX_BODY, config: network });
     } catch (err) {
       res = { status: 0, headers: {}, setCookies: [], body: '', error: err.code === 'TIMEOUT' ? 'timeout' : err.code === 'EBREAKAPI_BLOCKED' ? err.message : err.code || err.message };
     }

@@ -8,7 +8,7 @@ const int = (v, fallback) => (Number.isFinite(Number(v)) && v !== '' && v !== un
 
 /**
  * Reads configuration from the environment. Production defaults are the safe ones:
- * local and private-network targets are refused, signup is closed, and the server
+ * local and private-network targets are refused, and the server
  * refuses to start without the settings a public deployment needs.
  */
 export function loadConfig(env = process.env, overrides = {}) {
@@ -25,7 +25,8 @@ export function loadConfig(env = process.env, overrides = {}) {
     // Targets on this machine or its private network. Fine on a laptop, an SSRF risk on a shared server.
     allowLocalTargets: bool(env.BREAKAPI_ALLOW_LOCAL_TARGETS, !production),
     allowPrivateTargets: bool(env.BREAKAPI_ALLOW_PRIVATE_TARGETS, !production),
-    signup: ['open', 'closed'].includes(env.BREAKAPI_SIGNUP) ? env.BREAKAPI_SIGNUP : 'closed',
+    // The public demo lab: fixed examples against a built-in API. It never takes a target from a visitor.
+    lab: bool(env.BREAKAPI_LAB, true),
     sessionHours: int(env.BREAKAPI_SESSION_HOURS, 12),
     maxConcurrentScans: int(env.BREAKAPI_MAX_CONCURRENT_SCANS, 4),
     mail: {
@@ -59,7 +60,7 @@ export function publicConfig(c) {
   return {
     env: c.env,
     publicUrl: c.publicUrl || null,
-    signup: c.signup,
+    lab: c.lab,
     allowLocalTargets: c.allowLocalTargets,
     allowPrivateTargets: c.allowPrivateTargets,
     trustProxy: c.trustProxy,

@@ -5,7 +5,7 @@ This guide is for running breakAPI on a server other people use. For a laptop, `
 ## What you need
 
 - A host with Docker (or Node.js 22+), a domain name, and ports 80/443 open.
-- An SMTP account for outbound email (any provider: Postmark, SES, Mailgun, your own relay). breakAPI sends verification, password-reset, invitation and authorizer-confirmation emails. **Production refuses to start without it.**
+- An SMTP account for outbound email (any provider: Postmark, SES, Mailgun, your own relay). breakAPI sends password-reset and authorizer-confirmation emails. **Production refuses to start without it.**
 - A legal review of the undertaking text in [src/undertaking.js](src/undertaking.js) before anyone relies on it.
 
 ## 1. Configure
@@ -29,10 +29,10 @@ Safe defaults you should only loosen deliberately:
 | --- | --- | --- |
 | `BREAKAPI_ALLOW_LOCAL_TARGETS` | `false` | `true` would let any user scan the breakAPI server itself (`localhost`, `127.x`, `::1`). |
 | `BREAKAPI_ALLOW_PRIVATE_TARGETS` | `false` | `true` would let users reach `10.x`, `172.16–31.x`, `192.168.x`, `100.64/10` and `fc00::/7` from your network (a classic SSRF path into a VPC). Link-local and cloud-metadata addresses (`169.254.x`, `fe80::/10`, `fd00:ec2::254`) are **always** refused. |
-| `BREAKAPI_SIGNUP` | `closed` | `open` lets anyone create an account; they still have to verify their email before creating projects or running tests. With `closed`, admins invite people. |
+| `BREAKAPI_LAB` | `true` | The public demo lab: fixed examples against a built-in practice API on loopback, with no account. Set `false` to remove it. |
 | `BREAKAPI_TRUST_PROXY` | `false` | Set `true` only behind a reverse proxy that the app is not reachable around. It makes breakAPI read client IPs (for rate limiting and audit) and the HTTPS flag from `X-Forwarded-*`. |
 | `BREAKAPI_MAX_CONCURRENT_SCANS` | `4` | Server-wide cap on running scans. |
-| `BREAKAPI_SESSION_HOURS` | `12` | Idle timeout. Sessions also end 7 days after sign-in, on password change/reset, and when an admin disables the user. |
+| `BREAKAPI_SESSION_HOURS` | `12` | Idle timeout. For admins, sessions also end 7 days after sign-in. For everyone, they end on password reset and when an admin disables the user. Issued accounts have no idle timeout and last until their access ends. |
 
 ## 2. Run
 
@@ -45,7 +45,7 @@ docker compose up -d
 docker compose logs breakapi | grep -A2 "No accounts exist"
 ```
 
-The log prints a one-time **setup token**. Open `https://<your-domain>/#/setup`, paste it, and create the first administrator. The token is deleted once used.
+The log prints a one-time **setup token**. Open `https://<your-domain>`, choose **Admin login**, paste it, and create the first administrator. The token is deleted once used.
 
 The Compose file runs breakAPI read-only, as a non-root user, with all Linux capabilities dropped, behind Caddy (automatic HTTPS). Data lives in the `breakapi-data` volume.
 
@@ -60,7 +60,7 @@ Put it behind a TLS-terminating proxy (Caddy, nginx, a load balancer) and set `B
 ## 3. First administrator and users
 
 - **Setup token** (first run): as above.
-- **Invite people:** Admin → *Invite a user*. They get a one-time link (72 h) to set their name and password; using it verifies their email.
+- **Issue accounts:** Admin → *Issue a user account*. You get a password and setup token to share privately, shown once. The user needs both at every sign-in. Access lasts 30 days at most and **ends when the app restarts**, so plan upgrades and tell users; *Issue again* gives them new details and a new 30 days.
 - **Roles:** `admin` manages users and sees server settings and the system audit log. Admins do **not** automatically see other people's projects or findings: projects are visible only to their members (owner + members added on the project's Settings tab). Projects that predate accounts and were never assigned an owner appear under **Admin → Projects nobody owns**, where an admin can claim or delete them..
 - **Recovery without email:** stop the server, then
   ```bash
@@ -72,16 +72,16 @@ Put it behind a TLS-terminating proxy (Caddy, nginx, a load balancer) and set `B
 
 ## 4. Operate
 
-- **Health:** `GET /healthz` (liveness, no auth) and `GET /readyz` (writes the data file; returns 500 if the volume isn't writable). The Docker image has a `HEALTHCHECK`.
+- **Health:** `GET /healthz` (or `/api/healthz`; use the `/api/` form on Google-hosted platforms such as Cloud Run and Replit deployments, which answer `/healthz` themselves) and `GET /readyz` (or `/api/readyz`) (writes the data file; returns 500 if the volume isn't writable). The Docker image has a `HEALTHCHECK`.
 - **Logs:** one JSON line per request on stdout (`method`, `path` without query string, `status`, `ms`, `user` id, `ip`). Secrets, cookies and request bodies are never logged.
 - **Audit:** every project keeps its own audit log; the admin page shows the system audit log (sign-ins, failed sign-ins, invitations, role changes, disables, deletions).
 - **Shutdown:** `SIGTERM` stops running scans (recorded as stopped with a reason), flushes the data file and exits. Scans interrupted by a crash are marked *interrupted* on the next start.
 - **Backups:** back up the data volume (`db.json`) regularly. It contains hashed passwords, hashed session and link tokens, encrypted test credentials and all findings: treat backups as sensitive. Keep `BREAKAPI_SECRET_KEY` separately; without it, the encrypted credentials in a backup are unreadable (by design).
-- **Upgrades:** stop, replace the image or code, start. Data migrations run at startup. Authorizations recorded before the undertaking existed are blocked until re-recorded.
+- **Upgrades:** stop, replace the image or code, start. Data migrations run at startup. Issued access ends with the restart, so issue it again afterwards. Authorizations recorded before the undertaking existed are blocked until re-recorded.
 
 ## 5. Limits you should know about
 
 - **Single process, single file.** The data store is one JSON file written atomically. That suits a team-sized deployment; it does not support several app instances sharing the same data, and every write rewrites the file. Running more than one replica against the same volume will lose data. Move to a database before scaling horizontally.
 - **Rate limits are in memory.** They reset on restart and are per process.
 - **Email is the identity anchor.** Account verification and authorizer confirmation prove control of an inbox, not legal authority (see [SECURITY.md](SECURITY.md)).
-- **The demo API is never shipped.** `demo/`, `test/` and `testdata/` are excluded from the Docker image. Never deploy the demo.
+- **The practice API ships for the demo lab,** which binds it to loopback and closes it after each run. `test/` and `testdata/` are excluded from the image. Never run `npm run demo` on a network-facing address.

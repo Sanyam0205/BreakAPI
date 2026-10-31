@@ -5,8 +5,6 @@ data/
 .env.*
 !.env.example
 
-# Build output
-dist/
 node_modules/
 
 # Design-tool scratch (screenshots, spent sketches, caches). Large and regenerable.

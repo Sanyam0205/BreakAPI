@@ -42,9 +42,17 @@ export function matchingHost(authorization, url) {
 
 export const hostAllowed = (authorization, url) => !!matchingHost(authorization, url);
 
+/**
+ * The network rules a project's requests run under. A lab project is built by the server around a
+ * loopback demo API it started itself (src/lab.js); no request can set this flag or choose that host.
+ */
+export function targetConfig(project) {
+  return project?.lab ? { ...getConfig(), allowLocalTargets: true } : getConfig();
+}
+
 /** Local hosts skip the verification challenge, but only where local targets are allowed at all. */
-export function isLocalEntry(entry) {
-  if (!getConfig().allowLocalTargets) return false;
+export function isLocalEntry(entry, project) {
+  if (!targetConfig(project).allowLocalTargets) return false;
   try {
     return isLoopbackHost(new URL(`http://${entry}`).hostname);
   } catch {
@@ -67,8 +75,8 @@ export function entryVerified(project, entry, at = new Date()) {
 /** Per-host status for the UI, pre-flight and reports. */
 export function hostStatus(project, at = new Date()) {
   return (project.authorization?.allowedHosts || []).map((host) => {
-    const local = isLocalEntry(host);
-    const refused = hostRefusal(host);
+    const local = isLocalEntry(host, project);
+    const refused = hostRefusal(host, targetConfig(project));
     const v = (project.verifiedHosts || []).find((x) => x.host === host.toLowerCase() && x.authorizationId === project.authorization.id);
     if (refused) return { host, local: false, refused, verified: false, method: 'refused by server policy', at: null, stale: false };
     return {

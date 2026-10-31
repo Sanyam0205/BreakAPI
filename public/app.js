@@ -54,7 +54,7 @@ async function api(method, url, body) {
   if (r.status === 401 && !url.startsWith('/api/auth/') && !url.startsWith('/api/confirm/')) {
     me = null;
     if (!location.hash.startsWith('#/login')) afterLogin = location.hash || '#/';
-    location.hash = '#/login';
+    location.hash = '#/';
     throw new AuthError('Sign in required');
   }
   const data = await r.json().catch(() => ({}));
@@ -203,6 +203,7 @@ function guestShell(label) {
   clearInterval(pollTimer);
   document.getElementById('tmux').hidden = true;
   for (const id of ['logout', 'nav-account', 'nav-admin']) document.getElementById(id).hidden = true;
+  document.getElementById('nav-lab').hidden = !authInfo?.lab;
   document.getElementById('banner').innerHTML = '';
   document.getElementById('path').innerHTML = `<span class="who">guest@breakapi</span><span class="sep">:</span><span class="here">${esc(label)}</span><span class="sep">$</span><span class="caret" aria-hidden="true"></span>`;
   app.className = '';
@@ -212,19 +213,38 @@ const guestPanel = (title, body) => `<section class="pane login"><div class="pan
 const PW_HELP = '<span class="help">At least 12 characters. A few unrelated words works well.</span>';
 const note = (kind, html) => `<p class="note ${kind}">${html}</p>`;
 
-function renderLogin(message) {
-  guestShell('login');
+/** The first page: try the demo, or sign in. */
+function renderWelcome() {
+  guestShell('~');
+  view = { name: 'welcome' };
+  const choice = (href, cls, label, text) => `<li><a class="btn ${cls}" href="${href}">${label}</a><span>${text}</span></li>`;
+  app.innerHTML = `
+    <section class="welcome">
+      <h1>How secure is your API?</h1>
+      <p class="lede">breakAPI checks APIs for broken access control, login gaps, unsafe input handling, misconfiguration and missing rate limits. Try it on a built-in practice API, or sign in to test a real one you’re authorized to test.</p>
+      <ul class="choices">
+        ${authInfo?.lab ? choice('#/lab', 'primary', 'Try the demo lab', 'Ready-made examples against a built-in practice API. No account needed.') : ''}
+        ${choice('#/login/user', '', 'User login', 'Test real APIs with the email, password and setup token your administrator gave you.')}
+        ${choice('#/login/admin', '', 'Admin login', authInfo?.setupRequired ? 'Create the first administrator for this server.' : 'Manage who can test real APIs.')}
+      </ul>
+    </section>`;
+}
+
+function renderLogin(kind) {
+  const isUser = kind === 'user';
+  guestShell(`login/${kind}`);
   view = { name: 'login' };
-  app.innerHTML = guestPanel('Sign in', `
-    ${message ? note('bad', esc(message)) : ''}
+  app.innerHTML = guestPanel(isUser ? 'User login' : 'Admin login', `
+    ${isUser ? '<p class="dim small">Use the details your administrator shared with you. Access lasts 30 days at most, and ends sooner if the app restarts.</p>' : ''}
     <form id="login-form">
       <div class="field"><label for="le">Email</label><input id="le" type="email" name="email" autocomplete="username" required autofocus></div>
       <div class="field"><label for="lp">Password</label><input id="lp" type="password" name="password" autocomplete="current-password" required></div>
+      ${isUser ? '<div class="field"><label for="lt">Setup token</label><input id="lt" type="password" name="setupToken" autocomplete="off" required></div>' : ''}
       <button class="btn primary" type="submit">Sign in</button>
     </form>
-    <div class="guest-links"><a href="#/forgot">Forgot your password?</a>${authInfo?.signupOpen ? '<a href="#/signup">Create an account</a>' : '<span class="dim">New here? Ask an administrator for an invitation.</span>'}</div>`);
+    <div class="guest-links"><a href="#/">Back</a>${authInfo?.mailMode === 'smtp' ? '<a href="#/forgot">Forgot your password?</a>' : `<span class="dim">Forgot your password? ${isUser ? 'Ask your administrator to issue a new one.' : 'See “Recovery without email” in DEPLOY.md.'}</span>`}</div>`);
   onSubmit(document.getElementById('login-form'), async (v, btn) => {
-    const r = await act(() => api('POST', '/api/auth/login', { email: v.email, password: v.password }), null, btn);
+    const r = await act(() => api('POST', '/api/auth/login', v), null, btn);
     if (!r) return;
     me = r.user;
     const next = afterLogin && !/^#\/(login|setup)/.test(afterLogin) ? afterLogin : '#/';
@@ -238,7 +258,7 @@ function renderSetup() {
   guestShell('setup');
   view = { name: 'setup' };
   app.innerHTML = guestPanel('Create the first administrator', `
-    <p class="dim">No accounts exist yet. The setup token is printed in the server log when breakAPI starts and saved in the data directory as <code>setup-token</code>. It works once.</p>
+    <p class="dim">No accounts exist yet. This first-run setup token is printed in the server log when breakAPI starts and saved in the data directory as <code>setup-token</code>. It works once.</p>
     <form id="setup-form">
       <div class="field"><label for="st">Setup token</label><input id="st" type="password" name="setupToken" required autocomplete="off"></div>
       <div class="field"><label for="sn">Your name</label><input id="sn" type="text" name="name" required autocomplete="name"></div>
@@ -255,27 +275,6 @@ function renderSetup() {
   });
 }
 
-function renderSignup() {
-  guestShell('signup');
-  view = { name: 'signup' };
-  if (!authInfo?.signupOpen) {
-    app.innerHTML = guestPanel('Sign-up is closed', '<p>This server only accepts invited users. Ask an administrator to invite you.</p><div class="guest-links"><a href="#/login">Back to sign in</a></div>');
-    return;
-  }
-  app.innerHTML = guestPanel('Create an account', `
-    <form id="signup-form">
-      <div class="field"><label for="un">Name</label><input id="un" type="text" name="name" required autocomplete="name"></div>
-      <div class="field"><label for="ue">Email</label><input id="ue" type="email" name="email" required autocomplete="username"><span class="help">We send a link to confirm the address. You can't run tests until it's verified.</span></div>
-      <div class="field"><label for="up">Password</label><input id="up" type="password" name="password" required autocomplete="new-password" minlength="12">${PW_HELP}</div>
-      <button class="btn primary" type="submit">Create account</button>
-    </form>
-    <div class="guest-links"><a href="#/login">Already have an account? Sign in</a></div>`);
-  onSubmit(document.getElementById('signup-form'), async (v, btn) => {
-    const r = await act(() => api('POST', '/api/auth/signup', v), null, btn);
-    if (r) app.innerHTML = guestPanel('Check your email', `${note('ok', esc(r.message))}<div class="guest-links"><a href="#/login">Go to sign in</a></div>`);
-  });
-}
-
 function renderForgot() {
   guestShell('forgot');
   view = { name: 'forgot' };
@@ -284,10 +283,10 @@ function renderForgot() {
       <div class="field"><label for="fe">Email</label><input id="fe" type="email" name="email" required autocomplete="username" autofocus></div>
       <button class="btn primary" type="submit">Send reset link</button>
     </form>
-    <div class="guest-links"><a href="#/login">Back to sign in</a></div>`);
+    <div class="guest-links"><a href="#/">Back to sign in</a></div>`);
   onSubmit(document.getElementById('forgot-form'), async (v, btn) => {
     const r = await act(() => api('POST', '/api/auth/forgot', v), null, btn);
-    if (r) app.innerHTML = guestPanel('Check your email', `${note('ok', esc(r.message))}<p class="dim small">The link works once and expires in an hour.</p><div class="guest-links"><a href="#/login">Back to sign in</a></div>`);
+    if (r) app.innerHTML = guestPanel('Check your email', `${note('ok', esc(r.message))}<p class="dim small">The link works once and expires in an hour.</p><div class="guest-links"><a href="#/">Back to sign in</a></div>`);
   });
 }
 
@@ -302,7 +301,7 @@ function renderReset(token) {
     <p class="dim small">Saving signs you out on every device.</p>`);
   onSubmit(document.getElementById('reset-form'), async (v, btn) => {
     const r = await act(() => api('POST', '/api/auth/reset', { token, password: v.password }), null, btn);
-    if (r) app.innerHTML = guestPanel('Password changed', `${note('ok', 'Your password was changed. Sign in with the new one.')}<div class="guest-links"><a href="#/login">Sign in</a></div>`);
+    if (r) app.innerHTML = guestPanel('Password changed', `${note('ok', 'Your password was changed. Sign in with the new one.')}<div class="guest-links"><a href="#/">Sign in</a></div>`);
   });
 }
 
@@ -318,33 +317,6 @@ async function renderVerify(token) {
   }
 }
 
-async function renderInvite(token) {
-  guestShell('invite');
-  view = { name: 'invite' };
-  let info;
-  try {
-    info = await api('GET', `/api/auth/invite/${encodeURIComponent(token)}`);
-  } catch (err) {
-    app.innerHTML = guestPanel('Invitation not valid', `${note('bad', esc(err.message))}<div class="guest-links"><a href="#/login">Sign in</a></div>`);
-    return;
-  }
-  app.innerHTML = guestPanel('Join breakAPI', `
-    <p>You were invited as <b>${esc(info.email)}</b>.</p>
-    <form id="invite-form">
-      <div class="field"><label for="in">Your name</label><input id="in" type="text" name="name" required autocomplete="name" value="${esc(info.name)}"></div>
-      <div class="field"><label for="ip">Password</label><input id="ip" type="password" name="password" required autocomplete="new-password" minlength="12">${PW_HELP}</div>
-      <button class="btn primary" type="submit">Create my account</button>
-    </form>`);
-  onSubmit(document.getElementById('invite-form'), async (v, btn) => {
-    const r = await act(() => api('POST', '/api/auth/invite/accept', { token, ...v }), 'Welcome to breakAPI', btn);
-    if (r) {
-      me = r.user;
-      location.hash = '#/';
-    }
-  });
-}
-
-/** The authorizer's page: reached from an emailed link, no breakAPI account needed. */
 async function renderConfirm(token) {
   guestShell('confirm');
   view = { name: 'confirm' };
@@ -403,6 +375,7 @@ async function renderAccount() {
     <div class="page-head"><div><h1>Your account</h1><div class="sub">${esc(me.email)} · ${esc(me.role)}</div></div></div>
     <section class="pane"><div class="pane-title"><h2>Identity</h2><span class="end">${me.emailVerified ? '<span class="st st-completed">email verified</span>' : '<span class="st st-paused">email not verified</span>'}</span></div>
       <div class="pane-body">
+        ${me.accessExpiresAt ? `<p class="small">Your access lasts until <b>${fmtDate(me.accessExpiresAt)}</b>, or until the app restarts if that comes first. After that, ask your administrator to issue it again.</p>` : ''}
         ${me.emailVerified ? '<p class="dim small">Your verified email is recorded on every authorization you record and every scan you start.</p>' : `<p>Verify your email to create projects and run tests.</p><p><button class="btn" id="resend" type="button">Send verification link</button></p>`}
         <form id="profile-form" class="cmd"><label class="ps" for="pn">name=</label><input id="pn" type="text" name="name" required value="${esc(me.name)}"><button class="btn" type="submit">Save name</button></form>
       </div></section>
@@ -431,12 +404,12 @@ async function renderAccount() {
     if (!await confirmDialog('Sign out of breakAPI on every device, including this one?', 'Sign out everywhere')) return;
     if (await act(() => api('POST', '/api/auth/logout-all'), null, e.currentTarget)) {
       me = null;
-      location.hash = '#/login';
+      location.hash = '#/';
     }
   });
 }
 
-async function renderAdmin() {
+async function renderAdmin(issued) {
   view = { name: 'admin' };
   if (me.role !== 'admin') {
     app.innerHTML = note('bad', 'Administrators only.');
@@ -444,15 +417,21 @@ async function renderAdmin() {
   }
   const [overview, users, events, orphans] = await Promise.all([api('GET', '/api/admin/overview'), api('GET', '/api/admin/users'), api('GET', '/api/admin/audit'), api('GET', '/api/admin/orphans')]);
   setShell({ path: [{ label: 'admin', href: '#/admin' }], right: `<span>${overview.counts.users} users · ${overview.counts.runningScans} running</span>` });
-  const stateOf = (u) => (u.disabled ? '<span class="st st-failed">disabled</span>' : u.invited ? '<span class="st st-paused">invited</span>' : u.emailVerified ? '<span class="st st-completed">active</span>' : '<span class="st st-paused">unverified</span>');
+  const stateOf = (u) => (u.disabled ? '<span class="st st-failed">disabled</span>' : u.accessEnded ? `<span class="st st-failed" title="${esc(u.accessEnded)}">ended</span>` : u.accessExpiresAt ? `<span class="st st-completed">active</span> <span class="dim">until ${fmtDate(u.accessExpiresAt)}</span>` : '<span class="st st-completed">active</span>');
   const c = overview.config;
   app.className = '';
   app.innerHTML = `
     <div class="page-head"><div><h1>Administration</h1><div class="sub">breakAPI ${esc(overview.version)} · ${esc(c.env)}</div></div></div>
+    ${issued ? `<section class="pane issued"><div class="pane-title"><h2>Share these details with the user</h2><span class="end"><button class="btn sm" id="copy-issued" type="button">Copy all</button></span></div>
+      <div class="pane-body">
+        ${note('warn', '<b>Shown once.</b> The password and setup token are stored only as hashes and can’t be shown again. Share them privately.')}
+        <dl class="kv"><dt>Sign in at</dt><dd>${esc(location.origin)}/#/login/user</dd><dt>Email</dt><dd>${esc(issued.email)}</dd><dt>Password</dt><dd><code>${esc(issued.password)}</code></dd><dt>Setup token</dt><dd><code>${esc(issued.setupToken)}</code></dd><dt>Access until</dt><dd>${fmtDate(issued.expiresAt)}, or until the app restarts</dd></dl>
+      </div></section>` : ''}
     <section class="pane"><div class="pane-title"><h2>Server</h2><span class="dim">read-only; set through environment variables</span></div>
       <div class="pane-body"><dl class="kv">
         <dt>Public URL</dt><dd>${esc(c.publicUrl || 'not set (development)')}</dd>
-        <dt>Sign-up</dt><dd>${esc(c.signup)}</dd>
+        <dt>Demo lab</dt><dd>${c.lab ? 'on, open to anyone' : 'off'}</dd>
+        <dt>User accounts</dt><dd>issued by administrators · 30 days at most · end if the app restarts</dd>
         <dt>Local targets</dt><dd>${c.allowLocalTargets ? '<span class="c-medium">allowed</span>' : 'refused'}</dd>
         <dt>Private-network targets</dt><dd>${c.allowPrivateTargets ? '<span class="c-medium">allowed</span>' : 'refused'}</dd>
         <dt>Email</dt><dd>${esc(c.mail)}</dd>
@@ -460,13 +439,15 @@ async function renderAdmin() {
         <dt>Sessions</dt><dd>${esc(c.sessionHours)} h idle timeout · ${overview.counts.sessions} active</dd>
         <dt>Scans</dt><dd>${overview.counts.runningScans} running of at most ${esc(c.maxConcurrentScans)} · ${overview.counts.scans} total · ${overview.counts.projects} projects</dd>
       </dl></div></section>
-    <section class="pane"><div class="pane-title"><h2>Invite a user</h2></div>
-      <div class="pane-body"><form id="invite-user" class="cmd">
-        <label class="ps" for="iu">$ breakapi invite</label>
-        <input id="iu" type="email" name="email" required placeholder="teammate@example.com">
-        <select name="role" aria-label="Role" class="inline-select"><option value="user">user</option><option value="admin">admin</option></select>
-        <button class="btn primary" type="submit">Send invitation</button>
-      </form><span class="help">They get a one-time link (valid 72 hours) to set their name and password; their email counts as verified once they use it.</span></div></section>
+    <section class="pane"><div class="pane-title"><h2>Issue a user account</h2><span class="end dim small">lets them test real APIs</span></div>
+      <div class="pane-body"><form id="issue-user">
+        <div class="grid2">
+          <div class="field"><label for="iu">Email</label><input id="iu" type="email" name="email" required placeholder="teammate@example.com"></div>
+          <div class="field"><label for="in">Name</label><input id="in" type="text" name="name" maxlength="120"></div>
+        </div>
+        <div class="field"><label for="ip">Password</label><input id="ip" type="text" name="password" autocomplete="off" minlength="12"><span class="help">Leave blank to generate one. If you type one, use at least 12 characters.</span></div>
+        <button class="btn primary" type="submit">Create account</button>
+      </form><span class="help">You get the password and a setup token to pass on. They need both on every sign-in. Access lasts 30 days, and ends sooner if the app restarts.</span></div></section>
     <section class="pane"><div class="pane-title"><h2>Users</h2><span class="dim">${users.length} total</span></div>
       <div class="table-wrap"><table id="users">
         <thead><tr><th>Email</th><th>Name</th><th>Role</th><th>State</th><th>Projects</th><th>Last sign-in</th><th></th></tr></thead>
@@ -477,7 +458,7 @@ async function renderAdmin() {
           <td>${stateOf(u)}</td>
           <td>${u.projects}</td>
           <td class="dim">${u.lastLoginAt ? fmtDate(u.lastLoginAt) : 'never'}</td>
-          <td><div class="cmd">${u.invited || !u.emailVerified ? '<button class="btn sm" data-act="resend" type="button">Resend</button>' : ''}${u.id === me.id ? '' : `<button class="btn sm" data-act="${u.disabled ? 'enable' : 'disable'}" type="button">${u.disabled ? 'Enable' : 'Disable'}</button><button class="btn danger sm" data-act="delete" type="button">Delete</button>`}</div></td>
+          <td><div class="cmd">${u.role === 'admin' ? '' : '<button class="btn sm" data-act="reissue" type="button">Issue again</button>'}${u.id === me.id ? '' : `<button class="btn sm" data-act="${u.disabled ? 'enable' : 'disable'}" type="button">${u.disabled ? 'Enable' : 'Disable'}</button><button class="btn danger sm" data-act="delete" type="button">Delete</button>`}</div></td>
         </tr>`).join('')}</tbody></table></div></section>
     ${orphans.length ? `<section class="pane"><div class="pane-title"><h2>Projects nobody owns</h2><span class="dim">${orphans.length} · from before accounts existed</span></div>
       <div class="pane-body small dim">These can't be opened by anyone, so they can't be deleted from the project list either. Claim one to become its owner, or delete it. You see only its name, address and scan count.</div>
@@ -485,8 +466,19 @@ async function renderAdmin() {
         <tbody>${orphans.map((o) => `<tr data-id="${esc(o.id)}" data-name="${esc(o.name)}"><td>${esc(o.name)}</td><td class="dim">${esc(o.baseUrl || '—')}</td><td>${o.scans}</td><td class="dim">${fmtDate(o.createdAt)}</td><td><div class="cmd"><button class="btn sm" data-orphan="claim" type="button">Claim</button><button class="btn danger sm" data-orphan="delete" type="button">Delete</button></div></td></tr>`).join('')}</tbody></table></div></section>` : ''}
     <section class="pane"><div class="pane-title"><h2>System audit log</h2><span class="dim">last ${events.length}</span></div>
       <div class="dmesg">${events.map((e) => `<div><span class="ts">${esc(fmtDate(e.at))}</span> <span>${esc(e.event)}</span> <span class="msg">${esc([e.email, e.by && `by ${e.by}`, e.role, e.ip].filter(Boolean).join(' · '))}</span></div>`).join('') || '<div class="msg">No events yet.</div>'}</div></section>`;
-  onSubmit(document.getElementById('invite-user'), async (v, btn) => {
-    if (await act(() => api('POST', '/api/admin/users', v), `Invitation sent to ${v.email}`, btn)) renderAdmin();
+  if (issued) window.scrollTo(0, 0);
+  document.getElementById('copy-issued')?.addEventListener('click', async () => {
+    const text = `breakAPI sign-in: ${location.origin}/#/login/user\nEmail: ${issued.email}\nPassword: ${issued.password}\nSetup token: ${issued.setupToken}\nAccess until: ${fmtDate(issued.expiresAt)}, or until the app restarts`;
+    try {
+      await navigator.clipboard.writeText(text);
+      toast('Copied');
+    } catch {
+      toast('Your browser blocked copying. Select the details and copy them by hand.', true);
+    }
+  });
+  onSubmit(document.getElementById('issue-user'), async (v, btn) => {
+    const r = await act(() => api('POST', '/api/admin/users', v), `Account created for ${v.email}`, btn);
+    if (r) await renderAdmin(r.credentials);
   });
   document.getElementById('orphans')?.addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-orphan]');
@@ -500,7 +492,10 @@ async function renderAdmin() {
   const table = document.getElementById('users');
   table.addEventListener('change', async (e) => {
     const id = e.target.closest('tr')?.dataset.id;
-    if (e.target.matches('[data-role]') && id && !await act(() => api('PATCH', `/api/admin/users/${id}`, { role: e.target.value }), 'Role updated')) renderAdmin();
+    if (e.target.matches('[data-role]') && id) {
+      await act(() => api('PATCH', `/api/admin/users/${id}`, { role: e.target.value }), 'Role updated. They need to sign in again.');
+      renderAdmin();
+    }
   });
   table.addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-act]');
@@ -508,17 +503,153 @@ async function renderAdmin() {
     if (!btn || !id) return;
     const email = btn.closest('tr').children[0].textContent;
     const actions = {
-      resend: () => api('POST', `/api/admin/users/${id}/resend`),
+      reissue: async () => (await confirmDialog(`Issue ${email} a new password and setup token? The old ones stop working, they are signed out, and they get a new 30 days.`, 'Issue again') ? api('POST', `/api/admin/users/${id}/reissue`) : null),
       disable: async () => (await confirmDialog(`Disable ${email}? They are signed out at once and any scan they started stops.`, 'Disable') ? api('PATCH', `/api/admin/users/${id}`, { disabled: true }) : null),
       enable: () => api('PATCH', `/api/admin/users/${id}`, { disabled: false }),
       delete: async () => (await confirmDialog(`Delete ${email}? This cannot be undone. Users who own projects must hand them over first.`, 'Delete user') ? api('DELETE', `/api/admin/users/${id}`) : null),
     };
     const r = await act(actions[btn.dataset.act], null, btn);
     if (r) {
-      toast(btn.dataset.act === 'resend' ? 'Link sent' : 'Saved');
-      renderAdmin();
+      toast('Saved');
+      renderAdmin(r.credentials);
     }
   });
+}
+
+// ---------- Demo lab (public) ----------
+
+function labShell(path, right = '') {
+  document.getElementById('nav-lab').hidden = true;
+  setShell({ path, windows: [{ n: 0, label: 'demo lab', href: '#/lab', current: true }], session: 'demo-lab', right });
+  document.getElementById('banner').innerHTML = '';
+}
+
+async function renderLab() {
+  view = { name: 'lab' };
+  const { examples } = await api('GET', '/api/lab');
+  labShell([{ label: 'lab', href: '#/lab' }], `<span>${examples.length} examples</span>`);
+  const row = (x) => `<li class="lab-row">
+    <div class="lab-main">
+      <h3>${esc(x.title)}</h3>
+      <p>${esc(x.summary)}</p>
+      <details><summary>What it tests and how</summary><dl class="kv">
+        <dt>Tests</dt><dd>${esc(x.what)}</dd>
+        <dt>How</dt><dd>${esc(x.how)}</dd>
+        <dt>Expect</dt><dd>${esc(x.expect)}</dd>
+        <dt>Checks</dt><dd>${x.tests.map(esc).join('; ')}</dd>
+        ${x.phases.length > 1 ? `<dt>Phases</dt><dd>${x.phases.map(esc).join(' → ')}</dd>` : ''}
+      </dl></details>
+    </div>
+    <button class="btn primary sm" type="button" data-run="${esc(x.id)}" aria-label="Run ${esc(x.title)}">Run</button>
+  </li>`;
+  const group = (id, title, sub) => `<section class="pane"><div class="pane-title"><h2>${title}</h2><span class="dim">${sub}</span></div><ul class="lab-list">${examples.filter((x) => x.group === id).map(row).join('')}</ul></section>`;
+  app.className = '';
+  app.innerHTML = `
+    <div class="page-head"><div>
+      <h1>Demo lab</h1>
+      <p class="lede">Run a real scan against a built-in practice API with planted flaws. Each run starts its own copy, which is closed when the run ends. You can’t enter a target here, so nothing outside this server is ever contacted.</p>
+      <p class="small"><a href="/EXAMPLES.md" target="_blank" rel="noopener">Read the guide to every example</a></p>
+    </div></div>
+    ${group('testing', 'Kinds of API testing', 'what breakAPI looks for')}
+    ${group('safety', 'Safety controls', 'what stops breakAPI itself')}`;
+}
+
+app.addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-run]');
+  if (!btn) return;
+  const r = await act(() => api('POST', '/api/lab/runs', { exampleId: btn.dataset.run }), null, btn);
+  if (r) location.hash = `#/lab/run/${r.id}`;
+});
+
+const labState = { run: null, phase: null, selected: null, filter: null };
+
+async function renderLabRun(id) {
+  let run;
+  try {
+    run = await api('GET', `/api/lab/runs/${encodeURIComponent(id)}`);
+  } catch (err) {
+    labShell([{ label: 'lab', href: '#/lab' }]);
+    app.innerHTML = `${note('warn', esc(err.message))}<a class="btn" href="#/lab">Back to the demo lab</a>`;
+    return;
+  }
+  if (labState.run !== id) Object.assign(labState, { run: id, phase: null, selected: null });
+  const started = run.phases.filter((p) => p.scan);
+  const isActive = run.status === 'running';
+  // Follow the newest phase until someone picks one.
+  const index = labState.phase ?? Math.max(0, started.length - 1);
+  const phase = run.phases[index];
+  const s = phase.scan;
+  const findings = s?.findings || [];
+  if (!findings.some((f) => f.id === labState.selected)) labState.selected = findings[0]?.id || null;
+  const counts = Object.fromEntries(SEVERITIES.map((x) => [x, findings.filter((f) => f.severity === x).length]));
+  const selected = findings.find((f) => f.id === labState.selected);
+  const cmp = s?.comparison;
+
+  const prevList = document.querySelector('.flist ol');
+  const listScroll = prevList?.scrollTop ?? 0;
+  const prevLog = document.getElementById('scanlog');
+  const stick = !prevLog || prevLog.scrollTop + prevLog.clientHeight >= prevLog.scrollHeight - 24;
+
+  view = { name: 'lab-run', id };
+  labShell([{ label: 'lab', href: '#/lab' }, { label: run.exampleId, href: `#/lab/run/${id}` }], `<span>${esc(s?.status || run.status)}</span>`);
+  app.className = 'wide';
+  app.innerHTML = `
+    <section class="pane scanbar">
+      <div class="ident">
+        <h1>${esc(run.title)} ${s ? status(s.status) : status('queued')}</h1>
+        <div class="sub">demo lab · practice API on this server · ${run.phases.length > 1 ? `phase ${index + 1} of ${run.phases.length}` : 'one scan'}</div>
+      </div>
+      <div class="meter">
+        <div class="checks"><span class="mono-num">${s ? `${s.requestsSent} requests sent` : 'starting…'}</span>${phase.seen ? `<span class="mono-num">target counted ${phase.seen.requests} requests · ${phase.seen.writes} writes · ${phase.seen.deletes} DELETE</span>` : ''}</div>
+      </div>
+      <div class="tally" aria-label="Findings by severity">${SEVERITIES.map((x) => `<span class="${counts[x] ? `c-${x}` : 'zero'}"><b>${counts[x]}</b>${SEV_SHORT[x]}</span>`).join('')}</div>
+      <div class="actions">
+        ${isActive ? '<button class="btn danger" id="lab-stop" type="button">Stop</button>' : ''}
+        ${s && !ACTIVE.includes(s.status) && s.status !== 'blocked' ? `<a class="btn" href="/reports/lab/${esc(id)}/${index}" target="_blank" rel="noopener">Report</a>` : ''}
+        ${isActive ? '' : `<button class="btn primary" type="button" data-run="${esc(run.exampleId)}">Run again</button>`}
+        <a class="btn ghost" href="#/lab">All examples</a>
+      </div>
+    </section>
+    ${run.phases.length > 1 ? `<div class="filters lab-phases" role="group" aria-label="Phases">${run.phases.map((p, i) => `<button type="button" class="chip" data-phase="${i}" aria-pressed="${i === index}" ${p.scan ? '' : 'disabled'}>${i + 1}. ${esc(p.label)}</button>`).join('')}</div>` : ''}
+    ${run.error ? note('bad', esc(run.error)) : ''}
+    ${s?.stopReason ? `<p class="note warn"><b>Ended early.</b> ${esc(s.stopReason)}</p>` : ''}
+    ${s?.problems ? `<div class="note ok"><b>Blocked before any request was sent.</b><ul>${s.problems.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
+    ${cmp ? `<section class="pane"><div class="pane-title"><h2>Retest</h2><span class="dim">compared with phase ${index}</span>
+        <span class="end"><span class="st-completed">${cmp.fixed.length} fixed</span> <span class="dim">·</span> <span class="c-medium">${cmp.stillOpen.length} still open</span> <span class="dim">·</span> <span class="st-running">${cmp.new.length} new</span></span></div>
+      ${cmp.fixed.length ? `<div class="pane-body"><ul class="cmp">${cmp.fixed.map((f) => `<li><span class="k-fixed">fixed</span>${tag(f.severity)}<span>${esc(f.title)} <span class="dim">${esc(f.endpoint)}</span></span></li>`).join('')}</ul></div>` : ''}
+    </section>` : ''}
+    ${s && !s.problems ? `<div class="split">
+      <div class="flist">
+        <div class="pane-title"><span>Findings · ${findings.length}</span></div>
+        ${findings.length ? `<ol role="listbox" aria-label="Findings">${findings.map((f) => `<li role="none"><button class="fline" type="button" role="option" data-id="${esc(f.id)}" aria-selected="${f.id === labState.selected}">${tag(f.severity)}<span class="ft">${esc(f.title)}</span><span class="fe">${esc(f.endpoint)}${f.param ? ` · ${esc(f.param)}` : ''}</span></button></li>`).join('')}</ol>` : `<p class="empty">${ACTIVE.includes(s.status) ? 'Checks are running…' : 'Nothing to show.'}</p>`}
+      </div>
+      <div id="man">${manPage(s, selected)}</div>
+    </div>
+    <section class="pane"><div class="pane-title"><h2>Request log</h2><span class="dim">every request this scan sent · last ${s.log.length}</span></div>
+      <div class="dmesg" id="scanlog">${s.log.map((l) => dmesgLine(l, new Date(s.startedAt || run.createdAt))).join('') || '<div class="msg">Nothing was sent.</div>'}</div>
+    </section>` : ''}`;
+
+  fitFindingList();
+  const list = document.querySelector('.flist ol');
+  if (list) list.scrollTop = listScroll;
+  const log = document.getElementById('scanlog');
+  if (log && stick) log.scrollTop = log.scrollHeight;
+  list?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.fline');
+    if (!btn) return;
+    labState.selected = btn.dataset.id;
+    act(() => renderLabRun(id));
+  });
+  document.querySelector('.lab-phases')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-phase]');
+    if (!btn || btn.disabled) return;
+    labState.phase = Number(btn.dataset.phase);
+    labState.selected = null;
+    act(() => renderLabRun(id));
+  });
+  document.getElementById('lab-stop')?.addEventListener('click', (e) => act(() => api('POST', `/api/lab/runs/${encodeURIComponent(id)}/stop`), 'Stopping', e.currentTarget));
+  clearInterval(pollTimer);
+  if (isActive) pollTimer = setInterval(() => act(() => renderLabRun(id)), 1000);
 }
 
 // ---------- Home ----------
@@ -538,6 +669,7 @@ async function renderHome() {
       <div>
         <h1>How secure is your API?</h1>
         <p class="lede">breakAPI checks APIs you own or are authorized to test for broken access control, login gaps, one user reading another's data, unsafe input handling, misconfiguration and missing rate limits. Nothing is sent until an authorization is recorded and the target is in scope.</p>
+        ${me.accessExpiresAt ? `<p class="dim small">Your access lasts until ${fmtDate(me.accessExpiresAt)}, or until the app restarts if that comes first.</p>` : ''}
       </div>
     </div>
     <section class="pane">
@@ -1299,7 +1431,7 @@ async function renderScan(id) {
 function fitFindingList() {
   const list = document.querySelector('.flist');
   if (!list) return;
-  const bar = document.getElementById('tmux').offsetHeight;
+  const bar = document.getElementById('tmux').offsetHeight + document.querySelector('.disclaimer').offsetHeight;
   const top = Math.max(list.getBoundingClientRect().top, 46);
   list.style.setProperty('--flist-max', `${Math.max(280, window.innerHeight - bar - top - 12)}px`);
 }
@@ -1372,6 +1504,14 @@ function showBanner() {
   document.getElementById('banner-resend')?.addEventListener('click', (e) => act(() => api('POST', '/api/auth/resend-verification'), 'Verification link sent — check your inbox', e.currentTarget));
 }
 
+/** Header buttons for whoever is here: signed-in pages get the account actions, the lab is open to all. */
+function signedInChrome() {
+  document.getElementById('logout').hidden = !me;
+  document.getElementById('nav-account').hidden = !me;
+  document.getElementById('nav-admin').hidden = me?.role !== 'admin';
+  document.getElementById('nav-lab').hidden = !authInfo?.lab;
+}
+
 async function route() {
   clearInterval(pollTimer);
   const hash = location.hash.slice(1) || '/';
@@ -1388,17 +1528,19 @@ async function route() {
   if ((m = hash.match(/^\/confirm\/([\w-]+)$/))) return renderConfirm(m[1]);
   if ((m = hash.match(/^\/verify\/([\w-]+)$/))) return renderVerify(m[1]);
   if ((m = hash.match(/^\/reset\/([\w-]+)$/))) return renderReset(m[1]);
-  if ((m = hash.match(/^\/invite\/([\w-]+)$/))) return renderInvite(m[1]);
-  if (authInfo.setupRequired) return renderSetup();
-  if (hash === '/signup') return me ? (location.hash = '#/') : renderSignup();
-  if (hash === '/forgot') return renderForgot();
-  if (!me || hash === '/login') {
-    if (me) return (location.hash = '#/');
-    return renderLogin();
+  if (hash === '/lab' || (m = hash.match(/^\/lab\/run\/([\w-]+)$/))) {
+    signedInChrome();
+    return act(() => (hash === '/lab' ? renderLab() : renderLabRun(m[1])));
   }
-  document.getElementById('logout').hidden = false;
-  document.getElementById('nav-account').hidden = false;
-  document.getElementById('nav-admin').hidden = me.role !== 'admin';
+  if (hash === '/login/admin' || hash === '/setup') {
+    if (me) return (location.hash = '#/');
+    return authInfo.setupRequired ? renderSetup() : renderLogin('admin');
+  }
+  if (hash === '/login/user') return me ? (location.hash = '#/') : renderLogin('user');
+  if (hash === '/forgot') return renderForgot();
+  if (!me) return renderWelcome();
+  if (hash === '/login') return (location.hash = '#/');
+  signedInChrome();
   showBanner();
   await act(async () => {
     if (hash === '/account') return renderAccount();
@@ -1416,8 +1558,8 @@ async function route() {
 document.getElementById('logout').addEventListener('click', async () => {
   await api('POST', '/api/auth/logout').catch(() => {});
   me = null;
-  location.hash = '#/login';
-  route();
+  if (location.hash === '#/' || !location.hash) route();
+  else location.hash = '#/';
 });
 window.addEventListener('hashchange', route);
 route();

@@ -1,4 +1,4 @@
-# breakAPI production image. No dependencies to install; the demo API and tests are not shipped.
+# breakAPI image. No dependencies to install. The demo API ships for the demo lab, which only binds it to loopback; tests are not shipped.
 FROM node:22-alpine
 
 ENV NODE_ENV=production \
@@ -11,6 +11,8 @@ WORKDIR /app
 COPY package.json ./
 COPY src ./src
 COPY public ./public
+COPY demo ./demo
+COPY EXAMPLES.md ./
 
 RUN mkdir -p /data && chown node:node /data
 USER node
@@ -18,6 +20,6 @@ VOLUME ["/data"]
 EXPOSE 7300
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD wget -qO- http://127.0.0.1:7300/healthz >/dev/null || exit 1
+  CMD wget -qO- http://127.0.0.1:7300/api/healthz >/dev/null || exit 1
 
 CMD ["node", "src/main.js"]

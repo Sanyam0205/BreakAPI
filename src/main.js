@@ -25,7 +25,7 @@ app.server.listen(config.port, config.host, () => {
   if (setup) {
     console.log('');
     console.log('No accounts exist yet. Create the first administrator at:');
-    console.log(`  ${url}/#/setup`);
+    console.log(`  ${url}/#/login/admin`);
     console.log(`  setup token: ${setup}   (also saved in ${config.dataDir}/setup-token)`);
     console.log('');
   }

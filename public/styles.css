@@ -14,6 +14,7 @@
 }
 
 :root {
+  --disclaimer-h: 26px;
   --bg: #111214;
   --pane: #17191c;
   --pane-2: #1e2125;
@@ -91,7 +92,7 @@ kbd {
 @keyframes blink { 50% { opacity: 0; } }
 .prompt-actions { margin-left: auto; display: flex; gap: 8px; flex-shrink: 0; }
 
-.tmux { position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; display: flex; align-items: stretch; background: var(--green); color: var(--green-ink); font-size: var(--s-2); min-height: 30px; overflow-x: auto; scrollbar-width: none; }
+.tmux { position: fixed; left: 0; right: 0; bottom: var(--disclaimer-h); z-index: 6; display: flex; align-items: stretch; background: var(--green); color: var(--green-ink); font-size: var(--s-2); min-height: 30px; overflow-x: auto; scrollbar-width: none; }
 .tmux::-webkit-scrollbar { display: none; }
 .tmux-session { padding: 5px 14px 5px 24px; font-weight: 800; white-space: nowrap; }
 .tmux-windows { display: flex; }
@@ -105,7 +106,7 @@ kbd {
 .tmux-right { margin-left: auto; padding: 5px 24px 5px 14px; white-space: nowrap; display: flex; gap: 14px; align-items: center; font-weight: 500; }
 
 /* ---------- Layout ---------- */
-main { max-width: 1280px; margin: 0 auto; padding: 32px 24px 96px; }
+main { max-width: 1280px; margin: 0 auto; padding: 32px 24px 122px; }
 main.wide { max-width: none; }
 .page-head { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px 24px; margin-bottom: 24px; }
 .page-head .sub { color: var(--dim); font-size: var(--s-2); margin-top: 6px; }
@@ -277,7 +278,7 @@ pre .status { color: var(--yellow); font-weight: 700; }
 
 /* ---------- Overlays ---------- */
 #toast {
-  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 20; max-width: calc(100% - 32px);
+  position: fixed; bottom: 68px; left: 50%; transform: translateX(-50%); z-index: 20; max-width: calc(100% - 32px);
   background: var(--pane-2); color: var(--ink); border: 1px solid var(--line-2); border-radius: 2px; padding: 10px 16px; font-size: var(--s-2);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
 }
@@ -318,7 +319,7 @@ dialog .pane-title .end { margin-left: auto; }
   .tmux-session, .tmux-right { display: none; }
   .tmux-windows { flex-wrap: wrap; }
   .tmux-windows a { padding: 6px 10px; }
-  main { padding-bottom: 110px; }
+  main { padding-bottom: 136px; }
   h1 { font-size: 22px; }
   .man { padding: 16px; }
   .man-head span:nth-child(2) { display: none; }
@@ -381,3 +382,34 @@ details.fold:not([open]) > summary { border-bottom: 0; }
 .chip.c-critical { color: var(--red); } .chip.c-high { color: var(--magenta); } .chip.c-medium { color: var(--yellow); } .chip.c-low { color: var(--blue); }
 .chip[aria-pressed="true"] { background: var(--sel); border-color: var(--cyan); color: var(--ink); }
 .chip:hover { border-color: var(--dim); }
+
+/* Disclaimer: bottom centre of every page, under the tmux bar */
+.disclaimer {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 7; min-height: var(--disclaimer-h);
+  display: flex; align-items: center; justify-content: center; padding: 3px 16px;
+  background: var(--pane-2); border-top: 1px solid var(--line); color: var(--ink); font-size: var(--s-1); text-align: center;
+}
+
+/* First page */
+.welcome { max-width: 760px; margin: 8vh auto 0; }
+.welcome h1 { font-size: var(--s-6); margin-bottom: 12px; }
+.choices { list-style: none; margin: 28px 0 0; padding: 0; border-top: 1px solid var(--line); }
+.choices li { display: grid; grid-template-columns: 22ch 1fr; gap: 8px 20px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--line); font-size: var(--s-2); }
+.choices .btn { justify-content: center; text-align: center; }
+
+/* Demo lab */
+.lab-list { list-style: none; margin: 0; padding: 0; }
+.lab-row { display: flex; gap: 20px; align-items: flex-start; justify-content: space-between; padding: 14px 16px; border-top: 1px solid var(--line); }
+.lab-row:first-child { border-top: 0; }
+.lab-main { min-width: 0; flex: 1; }
+.lab-main h3 { font-size: var(--s-3); margin: 0 0 4px; }
+.lab-main p { font-size: var(--s-2); margin: 0 0 6px; color: var(--dim); }
+.lab-main summary { cursor: pointer; font-size: var(--s-1); color: var(--cyan); }
+.lab-main details dl { margin-top: 10px; }
+.lab-phases { margin-bottom: 20px; }
+.issued { border-color: rgba(240, 196, 90, 0.45); }
+.issued code { overflow-wrap: anywhere; }
+@media (max-width: 720px) {
+  .choices li { grid-template-columns: 1fr; }
+  .lab-row { flex-direction: column; gap: 10px; }
+}

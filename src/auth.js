@@ -37,7 +37,7 @@ export function passwordProblem(password, email = '') {
   return null;
 }
 
-/** Fixed-window counters for login, signup and reset throttling. */
+/** Fixed-window counters for login and reset throttling. */
 export class RateLimiter {
   constructor() {
     this.windows = new Map();
@@ -80,6 +80,6 @@ export function publicUser(u) {
     disabled: !!u.disabledAt,
     createdAt: u.createdAt,
     lastLoginAt: u.lastLoginAt || null,
-    invited: !u.passwordHash,
+    accessExpiresAt: u.role === 'admin' ? null : u.access?.expiresAt || null,
   };
 }

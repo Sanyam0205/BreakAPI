@@ -2,7 +2,7 @@
 
 This guide walks through every feature using the bundled vulnerable demo API and the data in [`testdata/`](testdata/). Each step says what to do and what you should see. Allow about an hour for the whole run. The "Fast path" below gets you to a finished scan in two minutes.
 
-> The demo API in `demo/` is deliberately insecure. Run it only on your own machine and never deploy it.
+> The demo API in `demo/` is deliberately insecure. Run it only on your own machine and never expose it to a network. To see breakAPI work without any setup, use the demo lab instead: [EXAMPLES.md](EXAMPLES.md).
 
 ## Host and base URL: the most common first stumble
 
@@ -101,29 +101,18 @@ node testdata/tokens.mjs
 | Do it for `dana@example.com` | Same message; a new `.eml` in `data/outbox` with a `/#/reset/…` link |
 | Open the link, set a new password | "Password changed"; all of Dana's sessions end. The link doesn't work a second time |
 
-### Inviting a user, and what users can't do
+### Issuing a user account, and what users can't do
 
-| Step | Expected |
+| Do | Expect |
 | --- | --- |
-| **Admin → Invite a user**: `uma@example.com`, role `user` | Uma appears as **invited**; an invitation email with a `/#/invite/…` link is in the outbox |
-| Open the link in a private window | "You were invited as uma@example.com". Set a name and password → signed in as Uma, email already **verified** |
-| As Uma, open `#/admin` | "Administrators only." The **Admin** button isn't shown |
-| As Uma, look at the project list | Empty: Dana's projects are invisible to her |
-| As Dana, **Admin**: change Uma's role to `admin`, then back to `user` | "Role updated"; the system audit log shows `user.role_changed` |
-| Try to change your own role or disable yourself | The control is disabled for your own row; the API refuses with "There must be at least one active administrator." for the last admin |
-| **Disable** Uma | She is signed out at once and can't sign in ("…or the account is not active") |
-| **Enable** her again | She can sign in |
-
-### Open sign-up and email verification (optional)
-
-Restart breakAPI with `BREAKAPI_SIGNUP=open npm start`.
-
-| Step | Expected |
-| --- | --- |
-| Sign out → **Create an account** → name, a new address, a 12+ character password | "Check your email for a link to verify your address, then sign in." |
-| Sign up again with the same address | The same message (no enumeration); the outbox gets an "already has an account" email instead |
-| Sign in without verifying | A yellow banner: **Verify your email.** Creating a project fails with "Verify your email address first…" |
-| Open the `/#/verify/…` link | "… is verified." The banner disappears and you can create projects |
+| **Admin → Issue a user account**: `uma@example.com`, name `Uma`, password blank | A **Share these details** panel at the top of the page shows a generated password and setup token, once. Nothing is emailed |
+| In a private window, choose **User login** and enter the email and password with a wrong setup token | "Those details aren't right…", the same message as a wrong password |
+| Enter the right setup token | Signed in as Uma, email **verified**. **Account** shows when access ends |
+| Open `/#/admin` as Uma | "Administrators only." The Admin button isn't shown |
+| Sign in as Uma in a second browser | The first browser's session ends: one session at a time |
+| Restart breakAPI, then sign in as Uma | "Your access ended when the app restarted." Dana's admin account still works |
+| **Admin → Users → Issue again** on Uma | New password and setup token. The old ones stop working, and access runs for another 30 days |
+| Change Uma's role to `admin` | Uma is signed out, and signs in again from **Admin login** with no token or time limit |
 
 ## 2. Projects
 
@@ -401,7 +390,7 @@ Details to check in the evidence:
 | Step | Expected |
 | --- | --- |
 | As Dana, open a project → **5:settings** (or press <kbd>5</kbd>) | Dana is listed as **owner** under Members |
-| Add `nobody@example.com` | "No active breakAPI user has that email. Ask an administrator to invite them first." |
+| Add `nobody@example.com` | "No active breakAPI user has that email. Ask an administrator to issue them an account first." |
 | Add `uma@example.com` | Uma is a **member**. Signed in as Uma, the project now appears in her list; she can configure it and run scans |
 | As Uma, look at the project list and the settings tab | The list row says **Leave**, not Delete, and the settings tab has no delete section (owners only). The API returns 403 |
 | As Uma, click **Leave** (list row or settings) | It disappears from her list; its URL now returns "Project not found", as does any of its scan or report URLs |
@@ -439,7 +428,9 @@ npm test
 Runs 28 tests across two suites:
 
 - [test/e2e.test.js](test/e2e.test.js) (15): authorization validation, the undertaking, per-host verification and re-verification, cloud-metadata blocking, scope blocks, a full read-only scan (no writes or DELETE, raw tokens never stored), budget, stop and retest, revocation and credential purge, report escaping, the write gate, the synthetic findings, a patched API producing none, and the write budget and duration limits.
-- [test/auth.test.js](test/auth.test.js) (13): first-run setup, generic sign-in failures and session rotation, sign-in rate limiting, invitations and admin-only routes, project privacy and membership, authorizer confirmation by email (confirm, resend, decline), forgot/reset and password change, disabling users and last-admin protection, CSRF origin checks and prototype pollution, open sign-up with email verification, production config and SSRF guards (including DNS that resolves to loopback), the password policy and health endpoints, and SMTP delivery against a fake server (including header-injection and dot-stuffing).
+- [test/auth.test.js](test/auth.test.js): first-run setup, generic sign-in failures and session rotation, sign-in rate limiting, issued accounts and admin-only routes, project privacy and membership, authorizer confirmation by email (confirm, resend, decline), forgot/reset and password change, disabling users and last-admin protection, CSRF origin checks and prototype pollution, open sign-up with email verification, production config and SSRF guards (including DNS that resolves to loopback), the password policy and health endpoints, and SMTP delivery against a fake server (including header-injection and dot-stuffing).
+- [test/access.test.js](test/access.test.js): setup tokens at sign-in, the 30-day limit, one session at a time, access ending on restart, issuing again, the disclaimer.
+- [test/lab.test.js](test/lab.test.js): every demo lab example finds what it promises, the lab can't be aimed elsewhere, its exception doesn't reach real projects, and its limits.
 
 ## For larger, multi-endpoint scenarios
 

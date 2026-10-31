@@ -6,6 +6,17 @@ breakAPI checks APIs you own, or are authorized to test, for common security wea
 
 **No test runs until the owner or an authorized representative records consent and the target is in the approved scope.**
 
+> This is a testing demo application only.
+
+## Two ways to use it
+
+| | Demo lab | Real APIs |
+| --- | --- | --- |
+| **Who** | Anyone, no account | Accounts issued by an administrator |
+| **Target** | A built-in practice API, chosen by the server | APIs you own or are authorized to test, after proving control |
+| **How long** | Runs are kept for an hour | 30 days at most, ending sooner if the app restarts |
+| **Guide** | [EXAMPLES.md](EXAMPLES.md) | [EXAMPLES.md](EXAMPLES.md#testing-a-real-api) |
+
 ## Quick start
 
 Requires Node.js 22 or later. There are no dependencies to install.
@@ -13,17 +24,17 @@ Requires Node.js 22 or later. There are no dependencies to install.
 ```bash
 npm start            # breakAPI on http://127.0.0.1:7300; prints a one-time setup token for the first admin
 npm run demo         # optional: a deliberately vulnerable API on http://localhost:4010
-npm test             # 28 end-to-end tests
+npm test             # end-to-end tests
 npm run admin -- list-users   # operator CLI: create-admin, reset-password, list-users, gen-key
 ```
 
-Open the printed URL, paste the setup token, and create the first administrator. Invite others from **Admin**. In development, emails (verification, reset, invitations, authorizer confirmations) are written to `data/outbox/` instead of being sent.
+Open the printed URL and choose **Try the demo lab**, or choose **Admin login**, paste the setup token and create the first administrator. Issue accounts for other people from **Admin**. In development, emails (password reset, authorizer confirmations) are written to `data/outbox/` instead of being sent.
 
-**Putting it online?** [DEPLOY-SPLIT.md](DEPLOY-SPLIT.md) walks through GitHub, a Netlify frontend and a Replit demo backend, step by step. For a real deployment read [DEPLOY.md](DEPLOY.md) (Docker Compose with HTTPS, required settings, backups).
+**Putting it online?** [DEPLOY-REPLIT.md](DEPLOY-REPLIT.md) covers Replit, which runs the whole app.
 
 **Deploying for other people?** Read [DEPLOY.md](DEPLOY.md) (Docker Compose with HTTPS, required settings, backups) and [SECURITY.md](SECURITY.md) (accounts, isolation, SSRF protection, residual risks).
 
-To try it against the demo:
+To set up a project by hand against the practice API:
 
 1. Run `npm run demo` and copy the two test tokens it prints (alice = id 1, bob = id 2).
 2. Run `npm start`, open the printed URL, create the first administrator with the setup token, and create a project.
@@ -54,7 +65,7 @@ All network traffic goes through one guarded client ([src/client.js](src/client.
 | **Owner control** | Pause, resume and stop at any time. Revoking the authorization stops running scans immediately. |
 | **Identifiable traffic** | Every request carries `X-BreakAPI-Scan: <id>` and a descriptive User-Agent. |
 | **Credentials** | Encrypted with AES-256-GCM (key in `data/secret.key`) and masked in logs and evidence. They are deleted automatically when the authorization expires or is revoked, and can be deleted on demand. |
-| **Accounts and access** | Email + password accounts with `admin` and `user` roles, scrypt hashing, rate-limited sign-in, server-side sessions, email verification, password reset and admin invitations. Projects and their findings are visible only to project members. The person who runs tests must have a verified email; an authorizer who isn't them confirms from an emailed link. See [SECURITY.md](SECURITY.md). |
+| **Accounts and access** | Email + password accounts with `admin` and `user` roles, scrypt hashing, rate-limited sign-in, server-side sessions and password reset. There is no public sign-up: administrators issue accounts, which need a password and setup token at every sign-in and last 30 days at most. Projects and their findings are visible only to project members. The person who runs tests must have a verified email; an authorizer who isn't them confirms from an emailed link. See [SECURITY.md](SECURITY.md). |
 
 ## Checks
 
@@ -85,7 +96,6 @@ You can fix a finding and rerun the scan: the retest reports each previous findi
 - Results depend on the accuracy of the spec, test accounts, roles and resource IDs you supply.
 - Some findings need human review and may be false positives. Subtle, business-logic and multi-step flaws are out of scope.
 - Rate limits that only trigger above the configured burst size will not be detected.
-- This is a single-operator tool. Multi-user projects and roles are not implemented yet.
 
 ### What the consent process does **not** guarantee
 
@@ -104,6 +114,7 @@ breakAPI's consent steps reduce the chance of testing something you shouldn't. T
 src/server.js       HTTP API, auth, validation, retention sweep
 src/scanner.js      orchestration, findings, retest comparison
 src/client.js       the guarded HTTP client (scope, budget, pacing, stop/pause)
+src/lab.js          the public demo lab: example definitions and runs
 src/scope.js        preflight checks (consent, undertaking, expiry, scope, per-host verification, window)
 src/undertaking.js  the undertaking text, legal notice and authorization limitations (edit with counsel)
 src/verify.js       DNS / well-known challenge, link-local and metadata blocking
@@ -113,6 +124,6 @@ src/importers.js    OpenAPI / Postman / manual import
 src/report.js       printable HTML report
 public/             single-page UI (no build step), self-hosted JetBrains Mono
 testdata/           specs, collections, token + seed scripts for TESTING.md
-demo/               deliberately vulnerable API and its spec — never deploy
-test/e2e.test.js    end-to-end tests
+demo/               deliberately vulnerable practice API and its spec; the lab binds it to loopback only
+test/               end-to-end, account, access and demo lab tests
 ```

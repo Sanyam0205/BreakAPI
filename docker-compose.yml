@@ -2,7 +2,7 @@
 #   cp .env.example .env   # fill it in
 #   edit deploy/Caddyfile  # your domain
 #   docker compose up -d
-#   docker compose logs breakapi | grep "setup token"   # then open https://<domain>/#/setup
+#   docker compose logs breakapi | grep "setup token"   # then open https://<domain> and choose Admin login
 services:
   breakapi:
     build: .

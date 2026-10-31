@@ -51,8 +51,8 @@ npm start                    # terminal 2. First run prints a one-time setup tok
 
 | Who | How | Used for |
 | --- | --- | --- |
-| **Dana Ruiz** `dana@example.com` | First administrator (`/#/setup`, setup token from terminal 2) | Runs nearly everything |
-| **Uma** `uma@example.com` | Dana → Admin → Invite a user; open the link from `data/outbox/*.eml` | Member, privacy checks |
+| **Dana Ruiz** `dana@example.com` | First administrator (**Admin login** on the first page, setup token from terminal 2) | Runs nearly everything |
+| **Uma** `uma@example.com` | Dana → Admin → Issue a user account; sign in with **User login** and the details shown | Member, privacy checks |
 | **Olu Owner** `olu@example.com` | **No account.** Only receives an emailed link | Authorizer confirmation |
 
 ### The standard project (every scenario starts from this, then changes one thing)
@@ -284,7 +284,7 @@ Start each from the standard project. Compare to **B1**.
 
 ## E. Projects and people (including deleting a project)
 
-Dana is the admin; Uma is invited and verified (see Section 0).
+Dana is the admin; Uma's account is issued (see Section 0).
 
 ### E1. Delete a project from the project list
 **Steps:** create `SC-E1`. Go to the project list (click `breakAPI` top left, or press <kbd>u</kbd>). On its row click the red **Delete** button.
@@ -331,7 +331,7 @@ Fresh `data/`, fresh demo. Fill in the right column as you go. A scenario passes
 
 | # | Do | Pass when | ✔ |
 | --- | --- | --- | --- |
-| 1 | Setup: create Dana; invite Uma (E setup) | Uma signs in, can't see Admin | |
+| 1 | Setup: create Dana; issue Uma's account (E setup) | Uma signs in, can't see Admin | |
 | 2 | **A1**, then **A2** on a scratch project | 8 endpoints; every bad line rejected as listed | |
 | 3 | Project `SC-B` from the standard recipe; **B1** | 18 findings; `/orders` not flagged | |
 | 4 | **B3** (remove bob, scan); re-add bob and set **B9** exclusions (scan); clear them (scan) | 16, then 15, then 18 findings | |
