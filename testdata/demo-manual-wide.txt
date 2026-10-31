@@ -1,0 +1,45 @@
+# breakAPI manual endpoint list — WIDE version of demo-manual.txt for the test scenarios in TEST-SCENARIOS.md.
+# Format: METHOD /path[?query=example] [public] [admin]
+#
+# The first 8 lines are exactly demo-manual.txt. Of the other lines, the demo API really serves only
+# /api/profile-data, /openapi.json and /api/health; the rest return 404 on purpose, so you can check that
+# a long list of endpoints that don't exist produces no false findings and spends the request budget predictably.
+
+# --- identical to demo-manual.txt ---
+GET /api/health public
+GET /api/me
+GET /api/users/{id}
+GET /api/users/{id}/orders
+GET /api/invoices/{id}
+GET /api/admin/users admin
+GET /api/search?q=al
+GET /api/greet?name=friend
+
+# --- real, but not in demo-manual.txt ---
+GET /api/profile-data
+GET /openapi.json public
+
+# --- nothing is served here (404): realistic API surface noise ---
+GET /api/v2/users/{id}
+GET /api/v2/users/{id}/sessions
+GET /api/teams/{id}
+GET /api/teams/{id}/members
+GET /api/orders/{id}
+GET /api/orders/{id}/items
+GET /api/products?category=keyboards
+GET /api/products/{id}
+GET /api/billing/invoices/{id}
+GET /api/billing/plans public
+GET /api/reports?year=2026
+GET /api/export?format=csv
+GET /api/settings
+GET /api/notifications
+GET /api/webhooks
+GET /api/keys admin
+GET /api/audit admin
+GET /api/internal/metrics admin
+GET /api/internal/flags admin
+GET /api/password/reset?email=alice@demo.test
+GET /api/auth/token
+GET /api/status public
+GET /api/version public

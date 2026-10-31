@@ -1,0 +1,203 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "breakAPI demo (deliberately vulnerable)",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:4010"
+    }
+  ],
+  "security": [
+    {
+      "bearer": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "parameters": {
+      "UserId": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "integer"
+        }
+      }
+    },
+    "schemas": {
+      "UserPatch": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "breakapi-test"
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/api/health": {
+      "get": {
+        "summary": "Health check",
+        "security": []
+      }
+    },
+    "/api/me": {
+      "get": {
+        "summary": "Current user"
+      }
+    },
+    "/api/users/{id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/UserId"
+        }
+      ],
+      "get": {
+        "summary": "Get a user profile"
+      },
+      "patch": {
+        "summary": "Update a user profile",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserPatch"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a user"
+      }
+    },
+    "/api/users/{id}/orders": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/UserId"
+        }
+      ],
+      "get": {
+        "summary": "List a user's orders"
+      }
+    },
+    "/api/invoices/{id}": {
+      "get": {
+        "summary": "Get an invoice",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/admin/users": {
+      "get": {
+        "summary": "List all users",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/search": {
+      "get": {
+        "summary": "Search users",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "al"
+            }
+          }
+        ]
+      }
+    },
+    "/api/greet": {
+      "get": {
+        "summary": "Greeting page",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/login": {
+      "post": {
+        "summary": "Log in",
+        "security": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "email": "alice@demo.test",
+                "password": "correct-horse"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/users": {
+      "post": {
+        "summary": "Sign up",
+        "security": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "email": "new.user@example.invalid",
+                "password": "S3cure-passw0rd",
+                "name": "New User",
+                "age": 30
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orders": {
+      "post": {
+        "summary": "Place an order",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "item": "keyboard",
+                "quantity": 1,
+                "price": 49.9
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/profile-data": {
+      "get": {
+        "summary": "Stored profile data"
+      }
+    }
+  }
+}

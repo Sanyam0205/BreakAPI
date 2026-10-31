@@ -1,0 +1,10 @@
+# breakAPI manual endpoint list for the demo API.
+# Format: METHOD /path[?query=example] [public] [admin]
+GET /api/health public
+GET /api/me
+GET /api/users/{id}
+GET /api/users/{id}/orders
+GET /api/invoices/{id}
+GET /api/admin/users admin
+GET /api/search?q=al
+GET /api/greet?name=friend

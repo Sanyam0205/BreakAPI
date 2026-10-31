@@ -1,0 +1,44 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "undersized-ui-text",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/assigned.html"
+        ],
+        "createdAt": "2026-10-29T17:05:30.161Z",
+        "reason": "Claude: spent decision-round sketch, not shipped; the page renders sub-22px text as skeleton bars"
+      },
+      {
+        "rule": "overused-font",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/challenger-wayfinding.html"
+        ],
+        "createdAt": "2026-10-29T17:05:30.179Z",
+        "reason": "Claude: spent decision-round sketch of a declined/unchosen challenger, not shipped"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/challenger-wayfinding.html"
+        ],
+        "createdAt": "2026-10-29T17:18:36.584Z",
+        "reason": "Claude: spent decision-round sketch of an unchosen challenger, not shipped"
+      },
+      {
+        "rule": "repeating-stripes-gradient",
+        "value": "*",
+        "files": [
+          "public/index.html"
+        ],
+        "createdAt": "2026-10-29T20:09:54.339Z",
+        "reason": "Claude: DESIGN.md specifies the scan progress bar as a segmented block meter (6px blocks, 2px gaps); used only in .meter, not as surface decoration"
+      }
+    ]
+  }
+}

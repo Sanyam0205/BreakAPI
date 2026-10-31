@@ -1,0 +1,4 @@
+openapi: 3.0.3
+info:
+  title: YAML is not supported yet — importing this should show a clear error
+paths: {}

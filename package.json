@@ -1,0 +1,16 @@
+{
+  "name": "breakapi",
+  "version": "0.2.0",
+  "description": "How secure is your API? Consent-first API security testing for systems you are authorized to test.",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node src/main.js",
+    "admin": "node src/cli.js",
+    "demo": "node demo/vulnerable-api.js",
+    "test": "node --test test/"
+  }
+}

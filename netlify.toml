@@ -1,0 +1,9 @@
+# Frontend on Netlify, backend elsewhere. See DEPLOY-SPLIT.md.
+# Set BACKEND_URL (the https:// origin of the backend, no path) under
+# Site configuration → Environment variables before the first deploy.
+[build]
+  command = "node deploy/netlify-build.mjs"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"

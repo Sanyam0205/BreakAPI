@@ -1,0 +1,20 @@
+{
+  "info": { "name": "breakAPI demo (Postman)", "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json" },
+  "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+  "item": [
+    { "name": "Health", "request": { "method": "GET", "url": "{{baseUrl}}/api/health", "auth": { "type": "noauth" } } },
+    {
+      "name": "Users",
+      "item": [
+        { "name": "Me", "request": { "method": "GET", "url": "{{baseUrl}}/api/me" } },
+        { "name": "Get user", "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/users/:id", "path": ["api", "users", ":id"] } } },
+        { "name": "User orders", "request": { "method": "GET", "url": "{{baseUrl}}/api/users/:id/orders" } },
+        { "name": "Update user", "request": { "method": "PATCH", "url": "{{baseUrl}}/api/users/:id", "body": { "mode": "raw", "raw": "{\"name\": \"breakapi-test\"}" } } }
+      ]
+    },
+    { "name": "Invoice", "request": { "method": "GET", "url": "{{baseUrl}}/api/invoices/:id" } },
+    { "name": "Admin users", "request": { "method": "GET", "url": "{{baseUrl}}/api/admin/users" } },
+    { "name": "Search", "request": { "method": "GET", "url": "{{baseUrl}}/api/search?q=al" } },
+    { "name": "Greet", "request": { "method": "GET", "url": "{{baseUrl}}/api/greet?name=friend" } }
+  ]
+}

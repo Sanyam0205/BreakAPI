@@ -1,0 +1,11 @@
+.git
+.github
+.impeccable
+data
+demo
+test
+testdata
+node_modules
+*.md
+.env
+.env.*

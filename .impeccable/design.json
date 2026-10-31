@@ -1,0 +1,734 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-29T17:17:43.300Z",
+  "title": "Design System: breakAPI",
+  "extensions": {
+    "colorMeta": {
+      "tty-charcoal": {
+        "role": "neutral",
+        "displayName": "TTY Charcoal",
+        "canonical": "#111214",
+        "oklch": "oklch(18.2% 0.004 0)",
+        "tonalRamp": [
+          "#0b0b0c",
+          "#242527",
+          "#414244",
+          "#606164",
+          "#818285",
+          "#a4a5a7",
+          "#c8c9ca",
+          "#eeeeef"
+        ]
+      },
+      "pane": {
+        "role": "neutral",
+        "displayName": "Pane",
+        "canonical": "#17191c",
+        "oklch": "oklch(21.3% 0.007 258.4)",
+        "tonalRamp": [
+          "#0a0b0c",
+          "#242528",
+          "#404246",
+          "#5f6165",
+          "#808286",
+          "#a3a5a8",
+          "#c8c9cb",
+          "#eeeeef"
+        ]
+      },
+      "pane-raised": {
+        "role": "neutral",
+        "displayName": "Pane Raised",
+        "canonical": "#1e2125",
+        "oklch": "oklch(24.6% 0.009 255.6)",
+        "tonalRamp": [
+          "#0a0b0d",
+          "#232528",
+          "#3f4247",
+          "#5e6266",
+          "#7f8388",
+          "#a2a5a9",
+          "#c7c9cc",
+          "#eeeeef"
+        ]
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "#2b2f34",
+        "oklch": "oklch(30.3% 0.011 254.0)",
+        "tonalRamp": [
+          "#0a0b0d",
+          "#222529",
+          "#3e4248",
+          "#5d6267",
+          "#7e8389",
+          "#a1a5aa",
+          "#c7c9cc",
+          "#eeeeef"
+        ]
+      },
+      "hairline-strong": {
+        "role": "neutral",
+        "displayName": "Hairline Strong",
+        "canonical": "#3a3f45",
+        "oklch": "oklch(36.5% 0.012 253.0)",
+        "tonalRamp": [
+          "#0a0b0d",
+          "#22252a",
+          "#3d4349",
+          "#5c6268",
+          "#7d838a",
+          "#a1a5ab",
+          "#c6c9cd",
+          "#eeeef0"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#dadde1",
+        "oklch": "oklch(89.6% 0.006 255.5)",
+        "tonalRamp": [
+          "#0a0b0c",
+          "#232527",
+          "#404245",
+          "#5f6165",
+          "#808286",
+          "#a3a5a8",
+          "#c8c9cb",
+          "#eeeeef"
+        ]
+      },
+      "dim": {
+        "role": "neutral",
+        "displayName": "Dim",
+        "canonical": "#9ba2aa",
+        "oklch": "oklch(70.9% 0.014 251.6)",
+        "tonalRamp": [
+          "#090b0e",
+          "#21252a",
+          "#3d4349",
+          "#5c6269",
+          "#7c838b",
+          "#a0a6ac",
+          "#c6c9cd",
+          "#edeef0"
+        ]
+      },
+      "shell-green": {
+        "role": "primary",
+        "displayName": "Shell Green",
+        "canonical": "#4ee08a",
+        "oklch": "oklch(80.8% 0.174 153.6)",
+        "tonalRamp": [
+          "#001300",
+          "#003400",
+          "#005903",
+          "#007b2b",
+          "#009f4d",
+          "#53be7c",
+          "#a0d9b1",
+          "#e2f4e7"
+        ]
+      },
+      "shell-green-ink": {
+        "role": "primary",
+        "displayName": "Shell Green Ink",
+        "canonical": "#07130c",
+        "oklch": "oklch(17.2% 0.023 157.9)",
+        "tonalRamp": [
+          "#080c0a",
+          "#1e2822",
+          "#38463d",
+          "#57655c",
+          "#77877d",
+          "#9ca9a1",
+          "#c4cbc6",
+          "#edefed"
+        ]
+      },
+      "signal-cyan": {
+        "role": "secondary",
+        "displayName": "Signal Cyan",
+        "canonical": "#62d6e8",
+        "oklch": "oklch(81.6% 0.107 209.0)",
+        "tonalRamp": [
+          "#001015",
+          "#002e3a",
+          "#005060",
+          "#007182",
+          "#0093a5",
+          "#5eb4c2",
+          "#a4d3db",
+          "#e3f2f4"
+        ]
+      },
+      "signal-cyan-ink": {
+        "role": "secondary",
+        "displayName": "Signal Cyan Ink",
+        "canonical": "#061316",
+        "oklch": "oklch(17.6% 0.020 213.6)",
+        "tonalRamp": [
+          "#070c0d",
+          "#1d2729",
+          "#364548",
+          "#556468",
+          "#75868a",
+          "#9aa8ab",
+          "#c3cbcd",
+          "#ecefef"
+        ]
+      },
+      "selection-wash": {
+        "role": "secondary",
+        "displayName": "Selection Wash",
+        "canonical": "rgba(98, 214, 232, 0.11)"
+      },
+      "sev-red": {
+        "role": "tertiary",
+        "displayName": "Severity Red",
+        "canonical": "#ff7070",
+        "oklch": "oklch(71.9% 0.175 22.5)",
+        "tonalRamp": [
+          "#220000",
+          "#540001",
+          "#87000d",
+          "#af222f",
+          "#d74c4f",
+          "#f07f7c",
+          "#fab4b1",
+          "#ffe8e7"
+        ]
+      },
+      "sev-magenta": {
+        "role": "tertiary",
+        "displayName": "Severity Magenta",
+        "canonical": "#f08ce0",
+        "oklch": "oklch(77.3% 0.159 333.1)",
+        "tonalRamp": [
+          "#1a0017",
+          "#43003d",
+          "#6f0d65",
+          "#933687",
+          "#b859aa",
+          "#d486c7",
+          "#e7b8de",
+          "#f8e9f5"
+        ]
+      },
+      "sev-yellow": {
+        "role": "tertiary",
+        "displayName": "Severity Yellow",
+        "canonical": "#f0c45a",
+        "oklch": "oklch(83.9% 0.133 86.6)",
+        "tonalRamp": [
+          "#150800",
+          "#3a1e00",
+          "#603900",
+          "#825900",
+          "#a57b00",
+          "#c2a051",
+          "#dbc79b",
+          "#f4eee0"
+        ]
+      },
+      "sev-blue": {
+        "role": "tertiary",
+        "displayName": "Severity Blue",
+        "canonical": "#84adff",
+        "oklch": "oklch(75.1% 0.127 263.4)",
+        "tonalRamp": [
+          "#020922",
+          "#0a2153",
+          "#1c3c84",
+          "#3a5ea9",
+          "#5a80ce",
+          "#84a5e5",
+          "#b5caf1",
+          "#e8effb"
+        ]
+      },
+      "print-paper": {
+        "role": "neutral",
+        "displayName": "Print Paper",
+        "canonical": "#ffffff",
+        "oklch": "oklch(100.0% 0.000 0)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ]
+      },
+      "print-ink": {
+        "role": "neutral",
+        "displayName": "Print Ink",
+        "canonical": "#111111",
+        "oklch": "oklch(17.8% 0.000 0)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ]
+      },
+      "print-dim": {
+        "role": "neutral",
+        "displayName": "Print Dim",
+        "canonical": "#555555",
+        "oklch": "oklch(45.0% 0.000 0)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ]
+      },
+      "print-line": {
+        "role": "neutral",
+        "displayName": "Print Line",
+        "canonical": "#cccccc",
+        "oklch": "oklch(84.5% 0.000 0)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ]
+      },
+      "print-panel": {
+        "role": "neutral",
+        "displayName": "Print Panel",
+        "canonical": "#f3f3f3",
+        "oklch": "oklch(96.4% 0.000 0)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ]
+      },
+      "print-green": {
+        "role": "primary",
+        "displayName": "Print Green",
+        "canonical": "#137a3a",
+        "oklch": "oklch(50.9% 0.132 150.2)",
+        "tonalRamp": [
+          "#001101",
+          "#003105",
+          "#005414",
+          "#087535",
+          "#3b9856",
+          "#72b882",
+          "#add5b4",
+          "#e6f2e8"
+        ]
+      },
+      "print-cyan": {
+        "role": "secondary",
+        "displayName": "Print Cyan",
+        "canonical": "#0b6e7d",
+        "oklch": "oklch(49.5% 0.083 211.6)",
+        "tonalRamp": [
+          "#000f14",
+          "#002c36",
+          "#004d5b",
+          "#096d7c",
+          "#3b909f",
+          "#72b1bd",
+          "#add1d8",
+          "#e6f1f3"
+        ]
+      },
+      "print-red": {
+        "role": "tertiary",
+        "displayName": "Print Red",
+        "canonical": "#b3261e",
+        "oklch": "oklch(50.1% 0.178 28.7)",
+        "tonalRamp": [
+          "#230000",
+          "#550000",
+          "#880000",
+          "#b0221b",
+          "#d84c3f",
+          "#f17f71",
+          "#fbb5aa",
+          "#ffe9e5"
+        ]
+      },
+      "print-magenta": {
+        "role": "tertiary",
+        "displayName": "Print Magenta",
+        "canonical": "#9b1f86",
+        "oklch": "oklch(48.4% 0.190 336.3)",
+        "tonalRamp": [
+          "#1d0017",
+          "#4a003e",
+          "#780066",
+          "#9e2389",
+          "#c44bac",
+          "#df7dc8",
+          "#efb3df",
+          "#fbe8f5"
+        ]
+      },
+      "print-yellow": {
+        "role": "tertiary",
+        "displayName": "Print Yellow",
+        "canonical": "#8a6100",
+        "oklch": "oklch(52.2% 0.108 79.7)",
+        "tonalRamp": [
+          "#150800",
+          "#391e00",
+          "#5f3900",
+          "#815900",
+          "#a47a2a",
+          "#c29f65",
+          "#dbc6a4",
+          "#f4eee3"
+        ]
+      },
+      "print-blue": {
+        "role": "tertiary",
+        "displayName": "Print Blue",
+        "canonical": "#1f4fbf",
+        "oklch": "oklch(46.8% 0.184 263.4)",
+        "tonalRamp": [
+          "#00062b",
+          "#001867",
+          "#0632a1",
+          "#2657c7",
+          "#467bef",
+          "#74a2ff",
+          "#acc9ff",
+          "#e5efff"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Page heads (h1); 22px under 640px."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Scan header identity, man-page title, tally numbers."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Section h2 and the brand wordmark (800)."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Base text, prose capped at 72ch; ligatures off."
+      },
+      "body-ui": {
+        "displayName": "Body UI",
+        "purpose": "The working size: controls, tables, finding lines, man-page body."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Uppercase man-page section heads and table headers; meta lines, dmesg, evidence at 400."
+      }
+    },
+    "typeScale": [
+      {
+        "name": "--s-1",
+        "value": "12px"
+      },
+      {
+        "name": "--s-2",
+        "value": "13px"
+      },
+      {
+        "name": "--s-3",
+        "value": "14px"
+      },
+      {
+        "name": "--s-4",
+        "value": "16px"
+      },
+      {
+        "name": "--s-5",
+        "value": "20px"
+      },
+      {
+        "name": "--s-6",
+        "value": "28px"
+      }
+    ],
+    "shadows": [
+      {
+        "name": "toast-float",
+        "value": "0 8px 24px rgba(0, 0, 0, 0.45)",
+        "purpose": "Bottom-centre status toast only."
+      },
+      {
+        "name": "dialog-float",
+        "value": "0 16px 48px rgba(0, 0, 0, 0.55)",
+        "purpose": "Modal dialogs (key map); backdrop rgba(5, 6, 7, 0.65)."
+      },
+      {
+        "name": "key-cap",
+        "value": "inset 0 -1px 0 #3a3f45",
+        "purpose": "kbd keys only."
+      },
+      {
+        "name": "focus-input",
+        "value": "0 0 0 1px #62d6e8",
+        "purpose": "Input focus ring alongside a cyan border."
+      }
+    ],
+    "focus": {
+      "outline": "2px solid #62d6e8",
+      "offset": "2px"
+    },
+    "motion": [
+      {
+        "name": "control-colour",
+        "value": "120ms",
+        "purpose": "Button background/border/colour transitions."
+      },
+      {
+        "name": "meter-fill",
+        "value": "400ms cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Segmented progress bar width."
+      },
+      {
+        "name": "caret-blink",
+        "value": "1.1s steps(1) infinite",
+        "purpose": "Prompt caret; disabled under prefers-reduced-motion with the other transitions."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "narrow",
+        "value": "640px"
+      },
+      {
+        "name": "split-stack",
+        "value": "900px"
+      },
+      {
+        "name": "scanbar-wrap",
+        "value": "1100px"
+      },
+      {
+        "name": "container",
+        "value": "1280px"
+      },
+      {
+        "name": "report-container",
+        "value": "980px"
+      }
+    ],
+    "fonts": [
+      {
+        "family": "JetBrains Mono",
+        "files": [
+          "/fonts/jetbrains-mono.woff2",
+          "/fonts/jetbrains-mono-italic.woff2"
+        ],
+        "weights": "100 800",
+        "license": "SIL OFL 1.1",
+        "hosting": "self-hosted (CSP default-src self)"
+      }
+    ],
+    "dateFormat": {
+      "locale": "en-GB",
+      "options": {
+        "day": "numeric",
+        "month": "short",
+        "year": "numeric",
+        "hour": "2-digit",
+        "minute": "2-digit",
+        "timeZoneName": "short"
+      },
+      "appliesTo": [
+        "app",
+        "report"
+      ]
+    },
+    "csp": "No inline style attributes or scripts; dynamic values via CSSOM (el.style.x, style.setProperty)."
+  },
+  "components": [
+    {
+      "name": "Button",
+      "kind": "button",
+      "refersTo": "button",
+      "description": "Default command button; optional kbd hint for its shortcut.",
+      "html": "<button class=\"ds-btn\">Report <kbd>o</kbd></button>",
+      "css": ":host{--bg:#111214;--pane:#17191c;--pane-2:#1e2125;--line:#2b2f34;--line-2:#3a3f45;--ink:#dadde1;--dim:#9ba2aa;--green:#4ee08a;--green-ink:#07130c;--cyan:#62d6e8;--red:#ff7070;--yellow:#f0c45a;--blue:#84adff;--magenta:#f08ce0;--sel:rgba(98,214,232,0.11);--font:\"JetBrains Mono\",ui-monospace,\"SF Mono\",Menlo,Consolas,monospace;--s-1:12px;--s-2:13px;--s-3:14px;}.ds-btn{display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border:1px solid var(--line-2);border-radius:2px;background:var(--pane-2);color:var(--ink);font:600 var(--s-2)/1.2 var(--font);cursor:pointer;transition:background-color 120ms,border-color 120ms,color 120ms;}.ds-btn:hover{border-color:var(--dim);background:#262a2f;}.ds-btn:focus-visible{outline:2px solid var(--cyan);outline-offset:2px;}.ds-btn kbd{font:11px/15px var(--font);min-width:16px;padding:0 3px;border:1px solid currentColor;border-radius:2px;opacity:.7;text-align:center;}"
+    },
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Shell-green action; one or two per view (Start, Retest).",
+      "html": "<button class=\"ds-btn ds-btn-primary\">Retest <kbd>r</kbd></button>",
+      "css": ":host{--bg:#111214;--pane:#17191c;--pane-2:#1e2125;--line:#2b2f34;--line-2:#3a3f45;--ink:#dadde1;--dim:#9ba2aa;--green:#4ee08a;--green-ink:#07130c;--cyan:#62d6e8;--red:#ff7070;--yellow:#f0c45a;--blue:#84adff;--magenta:#f08ce0;--sel:rgba(98,214,232,0.11);--font:\"JetBrains Mono\",ui-monospace,\"SF Mono\",Menlo,Consolas,monospace;--s-1:12px;--s-2:13px;--s-3:14px;}.ds-btn{display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border:1px solid var(--line-2);border-radius:2px;background:var(--pane-2);color:var(--ink);font:600 var(--s-2)/1.2 var(--font);cursor:pointer;transition:background-color 120ms,border-color 120ms,color 120ms;}.ds-btn:hover{border-color:var(--dim);background:#262a2f;}.ds-btn:focus-visible{outline:2px solid var(--cyan);outline-offset:2px;}.ds-btn kbd{font:11px/15px var(--font);min-width:16px;padding:0 3px;border:1px solid currentColor;border-radius:2px;opacity:.7;text-align:center;}.ds-btn-primary{background:var(--green);border-color:var(--green);color:var(--green-ink);}.ds-btn-primary:hover{background:#6ae99e;border-color:#6ae99e;}.ds-btn-primary kbd{opacity:1;}"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Stop, revoke: red text and border, no fill.",
+      "html": "<button class=\"ds-btn ds-btn-danger\">Stop <kbd>x</kbd></button>",
+      "css": ":host{--bg:#111214;--pane:#17191c;--pane-2:#1e2125;--line:#2b2f34;--line-2:#3a3f45;--ink:#dadde1;--dim:#9ba2aa;--green:#4ee08a;--green-ink:#07130c;--cyan:#62d6e8;--red:#ff7070;--yellow:#f0c45a;--blue:#84adff;--magenta:#f08ce0;--sel:rgba(98,214,232,0.11);--font:\"JetBrains Mono\",ui-monospace,\"SF Mono\",Menlo,Consolas,monospace;--s-1:12px;--s-2:13px;--s-3:14px;}.ds-btn{display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border:1px solid var(--line-2);border-radius:2px;background:var(--pane-2);color:var(--ink);font:600 var(--s-2)/1.2 var(--font);cursor:pointer;transition:background-color 120ms,border-color 120ms,color 120ms;}.ds-btn:hover{border-color:var(--dim);background:#262a2f;}.ds-btn:focus-visible{outline:2px solid var(--cyan);outline-offset:2px;}.ds-btn kbd{font:11px/15px var(--font);min-width:16px;padding:0 3px;border:1px solid currentColor;border-radius:2px;opacity:.7;text-align:center;}.ds-btn-danger{background:transparent;color:var(--red);border-color:rgba(255,112,112,.45);}.ds-btn-danger:hover{background:rgba(255,112,112,.1);border-color:rgba(255,112,112,.45);}"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Quiet utility action in the prompt line and dialog headers.",
+      "html": "<button class=\"ds-btn ds-btn-ghost\">Keyboard <kbd>?</kbd></button>",
+      "css": ":host{--bg:#111214;--pane:#17191c;--pane-2:#1e2125;--line:#2b2f34;--line-2:#3a3f45;--ink:#dadde1;--dim:#9ba2aa;--green:#4ee08a;--green-ink:#07130c;--cyan:#62d6e8;--red:#ff7070;--yellow:#f0c45a;--blue:#84adff;--magenta:#f08ce0;--sel:rgba(98,214,232,0.11);--font:\"JetBrains Mono\",ui-monospace,\"SF Mono\",Menlo,Consolas,monospace;--s-1:12px;--s-2:13px;--s-3:14px;}.ds-btn{display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border:1px solid var(--line-2);border-radius:2px;background:var(--pane-2);color:var(--ink);font:600 var(--s-2)/1.2 var(--font);cursor:pointer;transition:background-color 120ms,border-color 120ms,color 120ms;}.ds-btn:hover{border-color:var(--dim);background:#262a2f;}.ds-btn:focus-visible{outline:2px solid var(--cyan);outline-offset:2px;}.ds-btn kbd{font:11px/15px var(--font);min-width:16px;padding:0 3px;border:1px solid currentColor;border-radius:2px;opacity:.7;text-align:center;}.ds-btn-ghost{background:transparent;border-color:transparent;color:var(--dim);padding:4px 9px;font-size:var(--s-1);}.ds-btn-ghost:hover{background:transparent;color:var(--ink);border-color:var(--line-2);}"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Labeled standard input on the charcoal ground; cyan focus.",
+      "html": "<div class=\"ds-field\"><label class=\"ds-label\" for=\"ds-u\">Base URL <span class=\"ds-hint\">the API you are authorized to test</span></label><input class=\"ds-input\" id=\"ds-u\" type=\"url\" placeholder=\"http://localhost:4000\"><span class=\"ds-help\">Only hosts in scope receive requests.</span></div>",
+      "css": ":host{--bg:#111214;--pane:#17191c;--pane-2:#1e2125;--line:#2b2f34;--line-2:#3a3f45;--ink:#dadde1;--dim:#9ba2aa;--green:#4ee08a;--green-ink:#07130c;--cyan:#62d6e8;--red:#ff7070;--yellow:#f0c45a;--blue:#84adff;--magenta:#f08ce0;--sel:rgba(98,214,232,0.11);--font:\"JetBrains Mono\",ui-monospace,\"SF Mono\",Menlo,Consolas,monospace;--s-1:12px;--s-2:13px;--s-3:14px;}.ds-field{font-family:var(--font);color:var(--ink);background:var(--pane);padding:16px;}.ds-label{display:block;font-size:var(--s-2);font-weight:600;margin-bottom:6px;}.ds-hint{font-weight:400;color:var(--dim);}.ds-input{width:100%;box-sizing:border-box;padding:8px 10px;background:var(--bg);color:var(--ink);border:1px solid var(--line-2);border-radius:2px;font:400 var(--s-2)/1.5 var(--font);}.ds-input::placeholder{color:#7f868e;}.ds-input:hover{border-color:#4a5057;}.ds-input:focus{outline:none;border-color:var(--cyan);box-shadow:0 0 0 1px var(--cyan);}.ds-help{display:block;font-size:var(--s-1);color:var(--dim);margin-top:6px;}"
+    },
+    {
+      "name": "Prompt Path + tmux Bar",
+      "kind": "nav",
+      "refersTo": "tmux-bar",
+      "description": "Breadcrumb as a shell prompt on top; tmux windows with * current and ! attention flags at the bottom.",
+      "html": "<div class=\"ds-shell\"><div class=\"ds-prompt\"><span class=\"ds-who\">operator@breakapi</span><span class=\"ds-sep\">:</span><a href=\"#\">~</a><span class=\"ds-sep\">/</span><a href=\"#\">acme-api</a><span class=\"ds-sep\">/</span><span class=\"ds-here\">scans</span><span class=\"ds-sep\">$</span><span class=\"ds-caret\"></span></div><nav class=\"ds-tmux\"><span class=\"ds-session\">[breakapi]</span><a href=\"#\">0:authorization</a><a href=\"#\">1:target<span class=\"ds-flag\">!</span></a><a href=\"#\">2:accounts</a><a href=\"#\">3:controls</a><a href=\"#\" aria-current=\"page\">4:scans<span class=\"ds-flag\">*</span></a></nav></div>",
+      "css": ":host{--bg:#111214;--pane:#17191c;--pane-2:#1e2125;--line:#2b2f34;--line-2:#3a3f45;--ink:#dadde1;--dim:#9ba2aa;--green:#4ee08a;--green-ink:#07130c;--cyan:#62d6e8;--red:#ff7070;--yellow:#f0c45a;--blue:#84adff;--magenta:#f08ce0;--sel:rgba(98,214,232,0.11);--font:\"JetBrains Mono\",ui-monospace,\"SF Mono\",Menlo,Consolas,monospace;--s-1:12px;--s-2:13px;--s-3:14px;}.ds-shell{font:400 var(--s-2)/1.6 var(--font);background:var(--bg);color:var(--ink);}.ds-prompt{padding:10px 24px;border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden;}.ds-who{color:var(--green);}.ds-sep{color:var(--dim);}.ds-prompt a{color:var(--cyan);text-decoration:none;}.ds-prompt a:hover{text-decoration:underline;}.ds-prompt a:focus-visible,.ds-tmux a:focus-visible{outline:2px solid var(--cyan);outline-offset:2px;}.ds-here{color:var(--ink);}.ds-caret{display:inline-block;width:8px;height:15px;margin-left:6px;background:var(--green);vertical-align:-2px;animation:ds-blink 1.1s steps(1) infinite;}@keyframes ds-blink{50%{opacity:0}}.ds-tmux{display:flex;flex-wrap:wrap;background:var(--green);color:var(--green-ink);min-height:30px;margin-top:40px;}.ds-session{padding:5px 14px 5px 24px;font-weight:800;}.ds-tmux a{display:flex;align-items:center;padding:5px 12px;color:var(--green-ink);text-decoration:none;font-weight:500;}.ds-tmux a:hover{background:rgba(7,19,12,.12);}.ds-tmux a[aria-current=\"page\"]{background:var(--green-ink);color:var(--green);font-weight:700;}.ds-flag{width:1ch;text-align:center;}"
+    },
+    {
+      "name": "Severity Tags",
+      "kind": "chip",
+      "refersTo": "tag-critical",
+      "description": "Bracketed ANSI text tags, padded to align; no fills.",
+      "html": "<div class=\"ds-tags\"><span class=\"ds-tag ds-crit\">[CRIT]</span><span class=\"ds-tag ds-high\">[HIGH]</span><span class=\"ds-tag ds-med\">[MED ]</span><span class=\"ds-tag ds-low\">[LOW ]</span><span class=\"ds-tag ds-info\">[INFO]</span></div>",
+      "css": ":host{--bg:#111214;--pane:#17191c;--pane-2:#1e2125;--line:#2b2f34;--line-2:#3a3f45;--ink:#dadde1;--dim:#9ba2aa;--green:#4ee08a;--green-ink:#07130c;--cyan:#62d6e8;--red:#ff7070;--yellow:#f0c45a;--blue:#84adff;--magenta:#f08ce0;--sel:rgba(98,214,232,0.11);--font:\"JetBrains Mono\",ui-monospace,\"SF Mono\",Menlo,Consolas,monospace;--s-1:12px;--s-2:13px;--s-3:14px;}.ds-tags{display:flex;gap:16px;background:var(--pane);padding:16px;font-family:var(--font);}.ds-tag{display:inline-block;min-width:6ch;font-size:var(--s-2);font-weight:700;line-height:1.4;white-space:pre;}.ds-crit{color:var(--red);}.ds-high{color:var(--magenta);}.ds-med{color:var(--yellow);}.ds-low{color:var(--blue);}.ds-info{color:var(--dim);font-weight:500;}"
+    },
+    {
+      "name": "Pane",
+      "kind": "card",
+      "refersTo": "pane",
+      "description": "Hairline pane with title bar; the basic container.",
+      "html": "<section class=\"ds-pane\"><div class=\"ds-pane-title\"><h2>Readiness</h2><span>3 checks</span></div><ul class=\"ds-boot\"><li><span class=\"ds-ok\">[  OK  ]</span><a href=\"#\">Authorization recorded</a></li><li><span class=\"ds-warn\">[ WARN ]</span><a href=\"#\">No second test account</a></li><li><span class=\"ds-fail\">[ FAIL ]</span><a href=\"#\">Target host not verified</a></li></ul></section>",
+      "css": ":host{--bg:#111214;--pane:#17191c;--pane-2:#1e2125;--line:#2b2f34;--line-2:#3a3f45;--ink:#dadde1;--dim:#9ba2aa;--green:#4ee08a;--green-ink:#07130c;--cyan:#62d6e8;--red:#ff7070;--yellow:#f0c45a;--blue:#84adff;--magenta:#f08ce0;--sel:rgba(98,214,232,0.11);--font:\"JetBrains Mono\",ui-monospace,\"SF Mono\",Menlo,Consolas,monospace;--s-1:12px;--s-2:13px;--s-3:14px;}.ds-pane{background:var(--pane);border:1px solid var(--line);border-radius:2px;font:400 var(--s-2)/1.6 var(--font);color:var(--ink);}.ds-pane-title{display:flex;gap:12px;align-items:center;padding:9px 16px;border-bottom:1px solid var(--line);color:var(--dim);font-weight:500;}.ds-pane-title h2{margin:0;font-size:var(--s-2);color:var(--ink);font-weight:700;}.ds-pane-title span{margin-left:auto;}.ds-boot{list-style:none;margin:0;padding:18px 16px;}.ds-boot li{display:grid;grid-template-columns:9ch 1fr;gap:10px;padding:3px 0;white-space:pre;}.ds-boot a{color:inherit;}.ds-boot a:hover{color:var(--cyan);}.ds-boot a:focus-visible{outline:2px solid var(--cyan);outline-offset:2px;}.ds-ok{color:var(--green);font-weight:700;}.ds-warn{color:var(--yellow);font-weight:700;}.ds-fail{color:var(--red);font-weight:700;}"
+    },
+    {
+      "name": "Finding Line + Man Page",
+      "kind": "custom",
+      "refersTo": "finding-line-selected",
+      "description": "Signature scan split: selected finding line with cyan wash and rule, beside its man page.",
+      "html": "<div class=\"ds-split\"><button class=\"ds-fline\" aria-selected=\"true\"><span class=\"ds-t ds-crit\">[CRIT]</span><span class=\"ds-ft\">Other users' orders readable by ID</span><span class=\"ds-fe\">GET /orders/{id} · id</span></button><button class=\"ds-fline\" aria-selected=\"false\"><span class=\"ds-t ds-med\">[MED ]</span><span class=\"ds-ft\">No rate limit on login</span><span class=\"ds-fe\">POST /login</span></button><article class=\"ds-man\"><div class=\"ds-mh\"><span>BREAKAPI-IDOR(7)</span><span>breakAPI findings</span></div><section><h3>NAME</h3><div><span class=\"ds-crit\">[CRIT]</span> Other users' orders readable by ID</div></section><section><h3>FIX</h3><div>Check the order belongs to the caller before returning it.</div></section></article></div>",
+      "css": ":host{--bg:#111214;--pane:#17191c;--pane-2:#1e2125;--line:#2b2f34;--line-2:#3a3f45;--ink:#dadde1;--dim:#9ba2aa;--green:#4ee08a;--green-ink:#07130c;--cyan:#62d6e8;--red:#ff7070;--yellow:#f0c45a;--blue:#84adff;--magenta:#f08ce0;--sel:rgba(98,214,232,0.11);--font:\"JetBrains Mono\",ui-monospace,\"SF Mono\",Menlo,Consolas,monospace;--s-1:12px;--s-2:13px;--s-3:14px;}.ds-split{background:var(--pane);border:1px solid var(--line);border-radius:2px;font:400 var(--s-2)/1.6 var(--font);color:var(--ink);}.ds-fline{display:grid;grid-template-columns:7ch 1fr;gap:2px 10px;width:100%;padding:9px 16px;border:0;border-left:1px solid transparent;background:transparent;color:var(--ink);font:inherit;text-align:left;cursor:pointer;}.ds-fline:hover{background:rgba(255,255,255,.025);}.ds-fline[aria-selected=\"true\"]{background:var(--sel);border-left-color:var(--cyan);}.ds-fline:focus-visible{outline:2px solid var(--cyan);outline-offset:-2px;}.ds-t{font-weight:700;white-space:pre;}.ds-crit{color:var(--red);font-weight:700;}.ds-med{color:var(--yellow);}.ds-ft{font-weight:600;line-height:1.4;}.ds-fe{grid-column:2;color:var(--dim);font-size:var(--s-1);}.ds-man{padding:20px 28px;border-top:1px solid var(--line);}.ds-mh{display:flex;justify-content:space-between;color:var(--dim);font-size:var(--s-1);border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:18px;}.ds-man section{display:grid;grid-template-columns:14ch 1fr;gap:0 18px;margin-bottom:16px;}.ds-man h3{margin:0;font-size:var(--s-1);letter-spacing:.06em;color:var(--dim);padding-top:2px;}"
+    },
+    {
+      "name": "dmesg Log",
+      "kind": "custom",
+      "description": "Live request log: green elapsed time, status by class, dim context.",
+      "html": "<div class=\"ds-dmesg\"><div><span class=\"ds-ts\">[    0.412]</span> <span class=\"ds-s2\">200</span> GET /orders/41 <span class=\"ds-dim\">alice · baseline</span></div><div><span class=\"ds-ts\">[    0.538]</span> <span class=\"ds-s2\">200</span> GET /orders/42 <span class=\"ds-dim\">bob · cross-account</span></div><div><span class=\"ds-ts\">[    1.104]</span> <span class=\"ds-s4\">429</span> POST /login <span class=\"ds-dim\">anon · rate limit</span></div></div>",
+      "css": ":host{--bg:#111214;--pane:#17191c;--pane-2:#1e2125;--line:#2b2f34;--line-2:#3a3f45;--ink:#dadde1;--dim:#9ba2aa;--green:#4ee08a;--green-ink:#07130c;--cyan:#62d6e8;--red:#ff7070;--yellow:#f0c45a;--blue:#84adff;--magenta:#f08ce0;--sel:rgba(98,214,232,0.11);--font:\"JetBrains Mono\",ui-monospace,\"SF Mono\",Menlo,Consolas,monospace;--s-1:12px;--s-2:13px;--s-3:14px;}.ds-dmesg{background:var(--pane);font:400 var(--s-1)/1.7 var(--font);color:var(--ink);padding:10px 16px;font-variant-numeric:tabular-nums;white-space:pre;}.ds-ts,.ds-s2{color:var(--green);}.ds-s4{color:var(--yellow);}.ds-dim{color:var(--dim);}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Kernel Console",
+    "overview": "breakAPI behaves like a well-run Linux box. The shell is a tmux session: a prompt-path breadcrumb at the top tells you where you are, a green status bar at the bottom lists the windows you can switch to. A readiness check prints like a boot checklist, a running scan streams like dmesg, and every finding reads as a man page. The world is borrowed from the terminal because its conventions already mean \"calm, precise, in control\", which is what a consent-first security tool needs to feel like.\n\nIt is dense but quiet. One self-hosted monospace family on a strict six-step scale, a charcoal tty ground with panes one step lighter, hairline dividers, and almost no radius. ANSI colour is rationed: each hue has a job, and nothing is coloured for decoration. Under the terminal vocabulary every control stays a standard, labeled web control; the keyboard steering (number keys, j/k, Enter, ?) is an accelerator over normal clicks, never a requirement.\n\nThe world rejects two things by name: the light stat-card security dashboard (gradient cards, big KPI tiles) and the green-matrix hacker costume (glowing text, scanlines, alarm red everywhere).",
+    "keyCharacteristics": [
+      "Dark tty scene on screen; light paper in print.",
+      "One monospace family, ligatures off, tabular numbers wherever figures line up.",
+      "Colour only does jobs: green is the shell and success, cyan is interaction, focus and selection, red/magenta/yellow/blue are severities.",
+      "Bracketed text tags, never pills or fills.",
+      "Hairline panes, 2px radius ceiling, flat at rest.",
+      "Terminal anatomy (prompt path, tmux windows, boot checklist, dmesg, man page) carries the structure."
+    ],
+    "rules": [
+      {
+        "name": "The Colour Does Jobs Rule",
+        "body": "Every hue on screen must answer \"what job is this doing?\" with one of: shell/success (green), interaction/focus/selection (cyan), a severity (red, magenta, yellow, blue). Anything else is ink or dim.",
+        "section": "colors"
+      },
+      {
+        "name": "The No Wall Of Red Rule",
+        "body": "Severity colours colour text only. A list of twenty critical findings is twenty red bracketed words on charcoal, never twenty red rows or badges.",
+        "section": "colors"
+      },
+      {
+        "name": "The Dark Scene, Light Print Rule",
+        "body": "The app is always dark (`color-scheme: dark`); there is no light theme toggle. Paper output (`@media print` in the report) is always light.",
+        "section": "colors"
+      },
+      {
+        "name": "The Six Steps Rule",
+        "body": "Font sizes come from the scale only: 12, 13, 14, 16, 20, 28px (`--s-1`..`--s-6`). The single exception is `kbd` inside small buttons (11px).",
+        "section": "typography"
+      },
+      {
+        "name": "The Ligatures Off Rule",
+        "body": "`font-variant-ligatures: none` everywhere; operators like `!=` and `->` in evidence must render as typed. Figures that align (tables, dmesg, tallies, timestamps) use tabular numbers.",
+        "section": "typography"
+      },
+      {
+        "name": "The One Clock Rule",
+        "body": "Dates render one way in app and report: en-GB, day month year, HH:MM, zone (e.g. \"29 Oct 2026, 22:41 GMT\"). Elapsed log time is the dmesg form `[   12.345]`.",
+        "section": "typography"
+      },
+      {
+        "name": "The Fixed Status Bar Rule",
+        "body": "The tmux bar is always fixed at the viewport bottom, on every screen inside a project and at every width. On mobile it wraps; it never scrolls away or moves to the top. Content keeps enough bottom padding to clear it.",
+        "section": "layout"
+      },
+      {
+        "name": "The Flat Panes Rule",
+        "body": "Panes, cards, lists and controls carry no shadow. If something needs to stand out at rest, it gets a hairline or a tone step, not a glow.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Two Pixel Ceiling Rule",
+        "body": "No radius above 2px on any surface. No rounded cards, no pills, no circles.",
+        "section": "shapes"
+      }
+    ],
+    "dos": [
+      "**Do** take every font size from the 12/13/14/16/20/28px scale.",
+      "**Do** give every colour a job: green for shell and success, cyan for interaction, focus and selection, the four ANSI severities for severity.",
+      "**Do** render severity as bracketed text tags (`[CRIT]`, `[HIGH]`, `[MED ]`, `[LOW ]`, `[INFO]`), padded so the brackets align.",
+      "**Do** keep the tmux status bar fixed at the viewport bottom and let it wrap on mobile.",
+      "**Do** format dates one way everywhere: en-GB, day month year, HH:MM, zone.",
+      "**Do** use standard labeled web controls (button, input, select, checkbox, dialog) under the terminal vocabulary, and keep every keyboard shortcut optional.",
+      "**Do** keep styling CSP-safe: no inline `style` attributes or inline scripts; set dynamic values through the CSSOM (`el.style.width`, `setProperty`).",
+      "**Do** keep the app dark and the printed report light."
+    ],
+    "donts": [
+      "**Don't** put severity on fills, pills, badges or coloured rows; lists must never become a wall of red.",
+      "**Don't** use a radius above 2px, rounded cards, or pill shapes.",
+      "**Don't** add shadows to panes, buttons or lists; only the toast and dialogs float.",
+      "**Don't** build the light stat-card security dashboard (KPI tiles, gradient cards).",
+      "**Don't** dress it as a hacker movie: no glowing text, scanlines, CRT effects or matrix green on everything.",
+      "**Don't** introduce a second typeface or turn ligatures on.",
+      "**Don't** replace a real control with a fake terminal input that only accepts typed commands."
+    ]
+  }
+}

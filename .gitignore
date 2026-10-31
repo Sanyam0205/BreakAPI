@@ -1,0 +1,21 @@
+# Runtime data: users, sessions, the encryption key and findings. Never commit.
+data/
+*.eml
+.env
+.env.*
+!.env.example
+
+# Build output
+dist/
+node_modules/
+
+# Design-tool scratch (screenshots, spent sketches, caches). Large and regenerable.
+.impeccable/review/
+.impeccable/mocks/
+.impeccable/questions/
+.impeccable/hook.cache.json
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/

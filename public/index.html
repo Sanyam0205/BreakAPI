@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111214">
+  <title>breakAPI</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="/fonts/jetbrains-mono.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="shell">
+    <div class="prompt">
+      <a href="#/" class="brand" aria-label="breakAPI home"><span>break</span>API</a>
+      <nav class="path" id="path" aria-label="Location"></nav>
+      <div class="prompt-actions">
+        <button class="btn ghost sm key-help" id="help-btn" type="button" aria-keyshortcuts="?">Keyboard <kbd>?</kbd></button>
+        <a class="btn ghost sm" id="nav-admin" href="#/admin" hidden>Admin</a>
+        <a class="btn ghost sm" id="nav-account" href="#/account" hidden>Account</a>
+        <button class="btn ghost sm" id="logout" type="button" hidden>Sign out</button>
+      </div>
+    </div>
+    <div class="tmux" id="tmux" hidden>
+      <span class="tmux-session" id="tmux-session">[breakapi]</span>
+      <nav class="tmux-windows" id="tmux-windows" aria-label="Project sections"></nav>
+      <span class="tmux-right" id="tmux-right"></span>
+    </div>
+  </header>
+  <div id="banner"></div>
+  <main id="app"></main>
+  <dialog id="keys" aria-labelledby="keys-title">
+    <div class="pane-title"><b id="keys-title">Keyboard</b><span class="end"><button class="btn ghost sm" id="keys-close" type="button">Close <kbd>Esc</kbd></button></span></div>
+    <dl class="keymap">
+      <dt><kbd>0</kbd>–<kbd>5</kbd></dt><dd>Switch project section (authorization, target, accounts, controls, scans, settings)</dd>
+      <dt><kbd>j</kbd><kbd>k</kbd></dt><dd>Next / previous finding (arrow keys work too)</dd>
+      <dt><kbd>Enter</kbd></dt><dd>Open the focused finding or link</dd>
+      <dt><kbd>s</kbd></dt><dd>Start a scan (scans section)</dd>
+      <dt><kbd>p</kbd></dt><dd>Pause or resume the running scan</dd>
+      <dt><kbd>x</kbd></dt><dd>Stop the running scan</dd>
+      <dt><kbd>r</kbd></dt><dd>Retest a finished scan</dd>
+      <dt><kbd>o</kbd></dt><dd>Open the report</dd>
+      <dt><kbd>n</kbd></dt><dd>New project (home)</dd>
+      <dt><kbd>u</kbd></dt><dd>Up one level</dd>
+      <dt><kbd>?</kbd></dt><dd>Show this list</dd>
+    </dl>
+  </dialog>
+  <dialog id="confirm-dialog" aria-labelledby="confirm-title">
+    <div class="pane-title"><b id="confirm-title">Are you sure?</b></div>
+    <div class="pane-body">
+      <p id="confirm-text"></p>
+      <div class="cmd"><button class="btn danger" id="confirm-yes" type="button">Confirm</button><button class="btn ghost" id="confirm-no" type="button">Cancel</button></div>
+    </div>
+  </dialog>
+  <div id="toast" role="status" aria-live="polite" hidden></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

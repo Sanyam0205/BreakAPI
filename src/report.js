@@ -1,0 +1,97 @@
+import { escapeHtml as e, SEVERITIES } from './util.js';
+import { TEST_LABELS } from './scope.js';
+import { AUTH_LIMITATIONS, LEGAL_NOTICE, UNDERTAKING_CLAUSES } from './undertaking.js';
+
+export const LIMITATIONS = [
+  'breakAPI identifies indicators of risk. It cannot prove that an API is secure or find every vulnerability.',
+  'Results depend on the accuracy of the API specification, test accounts, roles and scope supplied by the owner.',
+  'Some issues need human review or application context; findings may include false positives, and subtle flaws may be missed.',
+  'Checks were rate-limited and non-destructive by default. DELETE requests are never sent.',
+];
+
+// Same format as the app (public/app.js fmtDate).
+const SHORT = { critical: 'crit', high: 'high', medium: 'med', low: 'low', info: 'info' };
+const fmt = (iso) => (iso ? new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' }) : '—');
+
+function evidenceBlock(ev) {
+  const parts = [];
+  if (ev.note) parts.push(`<p class="note">${e(ev.note)}</p>`);
+  if (ev.request) {
+    const reqHeaders = Object.entries(ev.requestHeaders || {}).map(([k, v]) => `${k}: ${v}`).join('\n');
+    const resHeaders = Object.entries(ev.responseHeaders || {}).map(([k, v]) => `${k}: ${v}`).join('\n');
+    parts.push(`<pre>${e(`${ev.request}\n${reqHeaders}${ev.requestBody ? `\n\n${ev.requestBody}` : ''}\n\n→ HTTP ${ev.status}\n${resHeaders}\n\n${ev.body || ''}`)}</pre>`);
+  }
+  return parts.join('');
+}
+
+export function renderReport(project, scan) {
+  const a = scan.authorizationSnapshot || project.authorization || {};
+  const c = scan.controlsSnapshot || project.controls || {};
+  const counts = Object.fromEntries(SEVERITIES.map((s) => [s, scan.findings.filter((f) => f.severity === s).length]));
+  const cmp = scan.comparison;
+
+  const sec = (name, body) => `<section><h2>${name}</h2><div>${body}</div></section>`;
+  const page = 'BREAKAPI(1)';
+
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>breakAPI report — ${e(project.name)}</title><link rel="stylesheet" href="/report.css"></head>
+<body><main>
+<header class="man-head"><span>${page}</span><span>Confidential security assessment</span><span>${page}</span></header>
+
+${sec('NAME', `<h1>${e(project.name)}</h1><p class="dim">Scan <code>${e(scan.id)}</code> · <b class="st-${e(scan.status)}">${e(scan.status)}</b> · ${fmt(scan.startedAt)} → ${fmt(scan.finishedAt)} · ${scan.requestsSent} requests</p>
+  ${scan.startedBy ? `<p class="dim">Started by <b>${e(scan.startedBy.name || scan.startedBy.email)}</b> &lt;${e(scan.startedBy.email)}&gt;${scan.startedBy.emailVerifiedAt ? ` · email verified ${fmt(scan.startedBy.emailVerifiedAt)}` : ' · <span class="c-high">email not verified</span>'}</p>` : ''}
+  ${scan.stopReason ? `<p class="warn">Ended early: ${e(scan.stopReason)}</p>` : ''}`)}
+
+${sec('SUMMARY', `<p class="tally">${SEVERITIES.map((s) => `<span class="${counts[s] ? `c-${s}` : 'zero'}"><b>${counts[s]}</b> ${s}</span>`).join('')}</p>
+  <p class="dim">${scan.findings.length ? 'Findings are listed most severe first. Each has evidence, impact and a fix.' : 'No findings were recorded. This does not mean the API is secure; see LIMITATIONS.'}</p>`)}
+
+${cmp ? sec('RETEST', `<p>Compared with scan <code>${e(cmp.previousScanId)}</code>: <b class="c-fixed">${cmp.fixed.length} fixed</b> · ${cmp.stillOpen.length} still open · ${cmp.new.length} new${cmp.unverified.length ? ` · ${cmp.unverified.length} not re-checked` : ''}.</p>
+  ${cmp.fixed.length ? `<ul>${cmp.fixed.map((f) => `<li><span class="c-fixed">fixed</span> ${e(f.title)} <code>${e(f.endpoint)}</code></li>`).join('')}</ul>` : ''}`) : ''}
+
+${sec('FINDINGS', scan.findings.length ? scan.findings.map((f, i) => `<article class="finding">
+  <h3><span class="tag t-${e(f.severity)}">[${e(SHORT[f.severity] || f.severity)}]</span> ${i + 1}. ${e(f.title)}</h3>
+  <p class="dim"><code>${e(f.endpoint)}</code>${f.param ? ` · parameter <code>${e(f.param)}</code>` : ''} · confidence ${e(f.confidence)} · check ${e(f.check)}</p>
+  <p>${e(f.description)}</p>
+  <p><b>Impact.</b> ${e(f.impact)}</p>
+  <p><b>Fix.</b> ${e(f.remediation)}</p>
+  ${(f.evidence || []).length ? `<details class="screen-only"><summary>Evidence (${f.evidence.length})</summary>${f.evidence.map(evidenceBlock).join('')}</details><div class="print-only">${f.evidence.map(evidenceBlock).join('')}</div>` : ''}
+</article>`).join('') : '<p class="dim">None.</p>')}
+
+${sec('AUTHORIZATION', `<dl>
+  <dt>Authorized by</dt><dd>${e(a.authorizerName)} &lt;${e(a.authorizerEmail)}&gt;${a.authorizerRole ? `, ${e(a.authorizerRole)}` : ''}</dd>
+  <dt>Basis</dt><dd>${a.relationship === 'delegated' ? `Delegated authority — ${e(a.delegationNote)}` : 'Owner of the target'}</dd>
+  <dt>Recorded</dt><dd>${fmt(a.recordedAt)}${a.recordedBy ? ` by ${e(a.recordedBy.name || a.recordedBy.email)} &lt;${e(a.recordedBy.email)}&gt;` : ''}</dd>
+  <dt>Confirmed</dt><dd>${a.confirmedAt ? `${fmt(a.confirmedAt)} · ${e(a.confirmedVia || '')}` : '<span class="c-high">not confirmed</span>'}</dd>
+  <dt>Expires</dt><dd>${fmt(a.expiresAt)}</dd>
+  <dt>Hosts in scope</dt><dd>${(a.allowedHosts || []).map((h) => `<code>${e(h)}</code>`).join(', ')}</dd>
+  <dt>Tests authorized</dt><dd>${(a.allowedTests || []).map((t) => e(TEST_LABELS[t] || t)).join('; ')}</dd>
+  <dt>Write requests</dt><dd>${a.allowWriteMethods ? 'POST/PUT/PATCH authorized, only to endpoints opted in to synthetic writes (DELETE never sent)' : 'Not authorized — read-only methods only'}</dd>
+  <dt>Writes sent</dt><dd>${scan.writesSent ?? 0} of at most ${e(c.maxWrites ?? 'default')}</dd>
+  <dt>Monitoring contact</dt><dd>${e(c.monitoringContact || a.monitoringContact || '—')}</dd>
+</dl>`)}
+
+${sec('UNDERTAKING', a.undertaking ? `<p>Accepted by <b>${e(a.undertaking.typedName)}</b> on ${fmt(a.undertaking.acceptedAt)} (version <code>${e(a.undertaking.version)}</code>, sha-256 <code>${e(a.undertaking.sha256.slice(0, 16))}…</code>).</p>
+  <ol>${UNDERTAKING_CLAUSES.map((cl) => `<li>${e(cl)}</li>`).join('')}</ol>
+  <p class="warn">${e(LEGAL_NOTICE)}</p>` : '<p class="warn">No undertaking was recorded for this authorization.</p>')}
+
+${sec('VERIFICATION', `<dl>${(scan.verificationSnapshot || []).map((h) => `<dt><code>${e(h.host)}</code></dt><dd>${h.local ? 'Local development only — no ownership proof was made.' : h.verified ? `Challenge passed: ${e(h.method)} at ${fmt(h.at)}` : 'Not verified'}</dd>`).join('') || '<dt>—</dt><dd>No snapshot recorded.</dd>'}</dl>
+  <p class="dim">A passed challenge shows a token could be published at that location at that time. It is not proof of ownership; see AUTH LIMITATIONS.</p>`)}
+
+${sec('CONTROLS', `<dl>
+  <dt>Base URL</dt><dd><code>${e(scan.targetSnapshot?.baseUrl)}</code> (${scan.targetSnapshot?.endpointCount ?? '?'} endpoints)</dd>
+  <dt>Request budget</dt><dd>${e(c.maxRequests)} total · ${e(c.maxWrites ?? 'default')} writes · ${e(Math.round((c.maxDurationMs ?? 1800000) / 60000))} min max · ${e(c.rps)} req/s (burst check ${e(c.rateLimitBurst)} at ${e(c.burstRps)} req/s)</dd>
+  <dt>Window</dt><dd>${fmt(c.windowStart)} → ${fmt(c.windowEnd)}</dd>
+  <dt>Exclusions</dt><dd>${(c.exclusions || []).length ? c.exclusions.map((x) => `<code>${e(x)}</code>`).join(', ') : 'None'}</dd>
+  <dt>Stop condition</dt><dd>${e(c.stopOnErrorStreak)} consecutive server errors or timeouts</dd>
+  <dt>Checks</dt><dd>${scan.checks.map((x) => `${e(x.id)}: ${e(x.status)}`).join(' · ')}</dd>
+</dl>`)}
+
+${sec('AUTH LIMITATIONS', `<ul>${AUTH_LIMITATIONS.map((l) => `<li>${e(l)}</li>`).join('')}</ul>`)}
+
+${sec('LIMITATIONS', `<ul>${LIMITATIONS.map((l) => `<li>${e(l)}</li>`).join('')}</ul>
+<p class="dim">This report contains sensitive security information. Share it only with people authorized on this assessment.</p>`)}
+
+<footer class="man-head"><span>breakAPI 0.1</span><span>${fmt(scan.finishedAt || scan.startedAt)}</span><span>${page}</span></footer>
+</main></body></html>`;
+}
