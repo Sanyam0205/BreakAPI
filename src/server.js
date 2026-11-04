@@ -12,7 +12,8 @@ import { challengeHost } from './verify.js';
 import { createScan, runScan, running, audit } from './scanner.js';
 import { renderReport, LIMITATIONS } from './report.js';
 import { createLab } from './lab.js';
-import { createSimClient } from './simclient.js';
+import { createSimClient, SimError } from './simclient.js';
+import { startEmbeddedSim, SIM_PREFIX } from './simembed.js';
 import { newId, nowIso, mask, clamp } from './util.js';
 import { setConfig, publicConfig } from './config.js';
 import { createMailer } from './mail.js';
@@ -147,8 +148,35 @@ export function createApp({ config, log = console } = {}) {
   const key = config.secretKey ? Buffer.from(config.secretKey, 'base64') : loadKey(config.dataDir);
   const mailer = createMailer(config, { log });
   const limiter = new RateLimiter();
-  const sim = config.simUrl && config.simControlKey ? createSimClient({ url: config.simUrl, key: config.simControlKey }) : null;
-  const lab = createLab({ key, log, sim, simUrl: config.simUrl, dailyRuns: config.labDailyRuns });
+  // The simulation is either a separate server (BREAKAPI_SIM_URL) or a checkout run inside this process
+  // (BREAKAPI_SIM_EMBED_DIR). Embedded, it starts asynchronously: `ready` settles once it is up, and the
+  // lab's calls wait for it. A failed start is logged and turns the playground off; nothing else is affected.
+  let embedded = null;
+  let sim = null;
+  let simBase = config.simUrl;
+  let ready = Promise.resolve(false);
+  if (config.simEmbedDir) {
+    simBase = `${config.simPublicUrl}${SIM_PREFIX}`;
+    const started = startEmbeddedSim({ dir: config.simEmbedDir, publicBase: simBase, log })
+      .then((e) => {
+        embedded = e;
+        return createSimClient({ url: e.url, key: e.key });
+      });
+    started.catch((err) => log.error?.(`The embedded simulation did not start: ${err.message}`));
+    ready = started.then(() => true, () => false);
+    const through = (name) => async (...args) => {
+      const client = await started.catch(() => { throw new SimError(503, 'The simulation is not available.'); });
+      return client[name](...args);
+    };
+    sim = {
+      host: new URL(config.simPublicUrl).host,
+      catalog: through('catalog'), create: through('create'), get: through('get'),
+      configure: through('configure'), reset: through('reset'), remove: through('remove'), spec: through('spec'),
+    };
+  } else if (config.simUrl && config.simControlKey) {
+    sim = createSimClient({ url: config.simUrl, key: config.simControlKey });
+  }
+  const lab = createLab({ key, log, sim, simUrl: simBase, dailyRuns: config.labDailyRuns });
   const appRun = randomToken(9);
   let server;
 
@@ -1116,6 +1144,16 @@ export function createApp({ config, log = console } = {}) {
       return res.end();
     }
     try {
+      // Embedded simulation: sandbox traffic only, answered with the sim's own headers (not breakAPI's).
+      if (config.simEmbedDir && (url.pathname === SIM_PREFIX || url.pathname.startsWith(`${SIM_PREFIX}/`))) {
+        for (const k of Object.keys(SECURITY_HEADERS)) res.removeHeader(k);
+        res.removeHeader('strict-transport-security');
+        if (!embedded) {
+          res.writeHead(503, { 'content-type': 'application/json; charset=utf-8' });
+          return res.end(JSON.stringify({ error: { code: 'unavailable', message: 'The simulation is starting or unavailable.' } }));
+        }
+        return embedded.forward(req, res, url);
+      }
       if (req.method === 'GET' && STATIC[url.pathname]) {
         const [file, type] = STATIC[url.pathname];
         res.writeHead(200, { 'content-type': type, ...(STATIC_CACHE[url.pathname] ? { 'cache-control': 'public, max-age=604800, immutable' } : {}) });
@@ -1179,17 +1217,22 @@ export function createApp({ config, log = console } = {}) {
   /** Stops running scans and flushes the store; used for graceful shutdown and tests. */
   const shutdown = async (reason = 'The breakAPI server is shutting down.') => {
     for (const ctl of running.values()) ctl.stopReason ??= reason;
-    lab.shutdown();
+    const labDone = lab.shutdown();
     const deadline = Date.now() + 5000;
     while (running.size && Date.now() < deadline) await new Promise((r) => setTimeout(r, 100));
     clearInterval(sweeper);
     limiter.stop();
     store.saveNow();
+    // Sandboxes are deleted by the lab; then the embedded sim (if any) is stopped.
+    await labDone.catch(() => {});
+    const simServer = embedded;
+    embedded = null; // later /sim requests answer 503 instead of reaching a closed port
+    await simServer?.close();
   };
 
   server.on('close', () => {
     clearInterval(sweeper);
     limiter.stop();
   });
-  return { server, store, config, mailer, key, setupToken: () => setupToken, lab, shutdown, decrypt: (blob) => decrypt(key, blob) };
+  return { server, store, config, mailer, key, setupToken: () => setupToken, lab, ready, shutdown, decrypt: (blob) => decrypt(key, blob) };
 }

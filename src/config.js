@@ -37,6 +37,11 @@ export function loadConfig(env = process.env, overrides = {}) {
     // The simulation backend (separate repo, breakapi-sim). Both set = the lab playground is on.
     simUrl: (env.BREAKAPI_SIM_URL || '').replace(/\/$/, ''),
     simControlKey: env.BREAKAPI_SIM_CONTROL_KEY || '',
+    // Alternative for hosts that run one app only: a checkout of breakapi-sim in this folder runs inside
+    // this process, reached at <simPublicUrl>/sim. simPublicUrl is the address of THIS server as the
+    // scanner reaches it (on Replit with a Netlify front end: the Replit address, not the Netlify one).
+    simEmbedDir: env.BREAKAPI_SIM_EMBED_DIR || '',
+    simPublicUrl: (env.BREAKAPI_SIM_PUBLIC_URL || env.BREAKAPI_PUBLIC_URL || '').replace(/\/$/, ''),
     sessionHours: int(env.BREAKAPI_SESSION_HOURS, 12),
     maxConcurrentScans: int(env.BREAKAPI_MAX_CONCURRENT_SCANS, 4),
     mail: {
@@ -58,6 +63,20 @@ export function loadConfig(env = process.env, overrides = {}) {
 /** Problems with the simulation settings. They stop any server from starting, hosted or not. */
 function simProblems(c) {
   const problems = [];
+  if (c.simEmbedDir) {
+    if (c.simUrl || c.simControlKey) problems.push('Use either BREAKAPI_SIM_EMBED_DIR (sim inside this server) or BREAKAPI_SIM_URL with BREAKAPI_SIM_CONTROL_KEY (sim elsewhere), not both.');
+    let u;
+    try {
+      u = new URL(c.simPublicUrl);
+    } catch {
+      problems.push('BREAKAPI_SIM_EMBED_DIR needs BREAKAPI_SIM_PUBLIC_URL (or BREAKAPI_PUBLIC_URL): the address the scanner reaches this server on.');
+    }
+    if (u && u.protocol !== 'https:' && !(c.allowLocalTargets && ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname))) {
+      problems.push('BREAKAPI_SIM_PUBLIC_URL must use https:// (plain http is only allowed on a laptop).');
+    }
+    if (u && u.pathname !== '/' && u.pathname !== '') problems.push('BREAKAPI_SIM_PUBLIC_URL must be the bare origin, without a path.');
+    return problems;
+  }
   if (!!c.simUrl !== !!c.simControlKey) problems.push('Set both BREAKAPI_SIM_URL and BREAKAPI_SIM_CONTROL_KEY, or neither.');
   if (c.simUrl) {
     let u;
@@ -92,7 +111,7 @@ export function publicConfig(c) {
     env: c.env,
     publicUrl: c.publicUrl || null,
     lab: c.lab,
-    simulation: c.simUrl ? new URL(c.simUrl).host : 'off',
+    simulation: c.simEmbedDir ? `embedded, ${(() => { try { return new URL(c.simPublicUrl).host; } catch { return 'no public URL'; } })()}/sim` : c.simUrl ? new URL(c.simUrl).host : 'off',
     labDailyRuns: c.labDailyRuns,
     allowLocalTargets: c.allowLocalTargets,
     allowPrivateTargets: c.allowPrivateTargets,

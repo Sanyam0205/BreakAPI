@@ -10,3 +10,6 @@ node_modules
 .env
 .env.*
 .sim
+dist
+sim
+netlify.toml

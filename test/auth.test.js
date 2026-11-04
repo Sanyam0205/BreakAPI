@@ -331,6 +331,22 @@ test('simulation config: both settings or neither, https only when hosted, a lon
   assert.match(configProblems(loadConfig({ BREAKAPI_SIM_URL: 'https://sim.example.com', BREAKAPI_SIM_CONTROL_KEY: 'short' })).join(' '), /24 characters/);
 });
 
+test('embedded simulation config: needs a public address, excludes the remote settings', () => {
+  const key = 'k'.repeat(32);
+  const ok = loadConfig({ BREAKAPI_SIM_EMBED_DIR: './sim', BREAKAPI_PUBLIC_URL: 'https://break-api.replit.app' });
+  assert.deepEqual(configProblems(ok), []);
+  assert.equal(ok.simPublicUrl, 'https://break-api.replit.app');
+  // A Netlify front end: BREAKAPI_PUBLIC_URL is the Netlify address, the sim's address is the Replit one.
+  const split = loadConfig({ BREAKAPI_SIM_EMBED_DIR: './sim', BREAKAPI_PUBLIC_URL: 'https://site.netlify.app', BREAKAPI_SIM_PUBLIC_URL: 'https://break-api.replit.app/' });
+  assert.deepEqual(configProblems(split), []);
+  assert.equal(split.simPublicUrl, 'https://break-api.replit.app');
+  assert.match(configProblems(loadConfig({ REPL_ID: 'x', BREAKAPI_SIM_EMBED_DIR: './sim' })).join(' '), /BREAKAPI_SIM_PUBLIC_URL/);
+  assert.match(configProblems(loadConfig({ BREAKAPI_SIM_EMBED_DIR: './sim', BREAKAPI_SIM_PUBLIC_URL: 'http://break-api.example.com' })).join(' '), /https/);
+  assert.match(configProblems(loadConfig({ BREAKAPI_SIM_EMBED_DIR: './sim', BREAKAPI_SIM_PUBLIC_URL: 'https://x.example.com/app' })).join(' '), /origin/);
+  assert.match(configProblems(loadConfig({ BREAKAPI_SIM_EMBED_DIR: './sim', BREAKAPI_PUBLIC_URL: 'https://x.example.com', BREAKAPI_SIM_URL: 'https://sim.example.com', BREAKAPI_SIM_CONTROL_KEY: key })).join(' '), /not both/);
+  assert.deepEqual(configProblems(loadConfig({ BREAKAPI_SIM_EMBED_DIR: './sim', BREAKAPI_SIM_PUBLIC_URL: 'http://localhost:7300' })), [], 'a laptop may use http');
+});
+
 test('production config: refuses unsafe settings and local or private targets', async () => {
   const prod = loadConfig({ BREAKAPI_ENV: 'production' });
   assert.equal(prod.allowLocalTargets, false);

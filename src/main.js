@@ -15,6 +15,8 @@ const log = {
   error: (m) => console.error(m instanceof Error ? m.stack : m),
 };
 const app = createApp({ config, log });
+// An embedded simulation takes a moment to load. A failure is logged and only turns the playground off.
+const simUp = await app.ready;
 
 app.server.listen(config.port, config.host, () => {
   const shown = ['0.0.0.0', '::'].includes(config.host) ? 'localhost' : config.host;
@@ -38,7 +40,8 @@ app.server.listen(config.port, config.host, () => {
   if (config.hosted && (config.allowLocalTargets || config.allowPrivateTargets)) {
     console.warn('Warning: this server is hosted but lets users scan local or private addresses. Set BREAKAPI_ALLOW_LOCAL_TARGETS=false and BREAKAPI_ALLOW_PRIVATE_TARGETS=false.');
   }
-  console.log(config.simUrl ? `Lab playground: simulation at ${new URL(config.simUrl).host}` : 'Lab playground: off (set BREAKAPI_SIM_URL and BREAKAPI_SIM_CONTROL_KEY to turn it on)');
+  if (config.simEmbedDir) console.log(simUp ? `Lab playground: simulation embedded, sandboxes at ${config.simPublicUrl}/sim/s/<id>` : 'Lab playground: OFF, the embedded simulation did not start (see the error above)');
+  else console.log(config.simUrl ? `Lab playground: simulation at ${new URL(config.simUrl).host}` : 'Lab playground: off (set BREAKAPI_SIM_URL and BREAKAPI_SIM_CONTROL_KEY, or BREAKAPI_SIM_EMBED_DIR, to turn it on)');
 });
 
 let stopping = false;

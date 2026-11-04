@@ -232,7 +232,8 @@ export function createLab({ key, log = console, sim = null, simUrl = '', dailyRu
   // In memory on purpose: lab runs are never mixed with real projects, accounts or the data file.
   const store = { data: { projects: {}, scans: {} }, save() {}, saveNow() {} };
   const runs = new Map();
-  const simOrigin = simUrl ? new URL(simUrl).origin : '';
+  // Where a sandbox is reached by the scanner: the sim's origin, or this server's address plus /sim when embedded.
+  const simBase = simUrl.replace(/\/$/, '');
   let starting = 0;
   const daily = { day: '', count: 0 };
 
@@ -324,7 +325,7 @@ export function createLab({ key, log = console, sim = null, simUrl = '', dailyRu
 
   // ---------- playground: sandboxes on the simulation backend ----------
 
-  const sandboxBase = (sandboxId) => `${simOrigin}/s/${sandboxId}`;
+  const sandboxBase = (sandboxId) => `${simBase}/s/${sandboxId}`;
 
   /** Catalog for the lab page, or why the playground is unavailable. */
   const playground = async () => {

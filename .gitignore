@@ -20,3 +20,9 @@ node_modules/
 
 # CI checkout of the breakapi-sim repo
 .sim/
+
+# Netlify build output
+dist/
+
+# A breakapi-sim checkout used by embedded mode (its own repo)
+/sim/

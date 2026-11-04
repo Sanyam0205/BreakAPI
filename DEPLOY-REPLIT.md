@@ -16,6 +16,8 @@ The lab works without the sim: the built-in examples run against a practice API 
 
 For a host where your data is safe across restarts, see [DEPLOY.md](DEPLOY.md).
 
+**Only one Replit app available (free plan)?** Run the sim inside the breakAPI Repl and put the front end on Netlify: see [DEPLOY-NETLIFY.md](DEPLOY-NETLIFY.md).
+
 ---
 
 ## Step 0. Put both repos on GitHub

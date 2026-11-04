@@ -199,3 +199,99 @@ test('only an in-memory lab project can carry the simulation exemption', () => {
   assert.equal(isSimEntry({ lab: true, simHost: 'sim.example.com' }, 'other.example.com'), false);
   assert.equal(isSimEntry({ lab: true }, 'sim.example.com'), false);
 });
+
+// --- Embedded mode: the sim runs inside breakAPI (one Replit project), reached at <public URL>/sim ---
+
+async function startEmbedded(overrides = {}) {
+  // The public address has to be known before the app is created, so reserve a free port first.
+  const probe = (await import('node:http')).createServer();
+  const port = await listen(probe);
+  await new Promise((ok) => probe.close(ok));
+  const dataDir = mkdtempSync(join(tmpdir(), 'breakapi-embed-'));
+  const publicUrl = `http://127.0.0.1:${port}`;
+  const app = createApp({
+    config: loadConfig({}, { dataDir, quiet: true, allowLocalTargets: true, allowPrivateTargets: false, simEmbedDir: simDir, simPublicUrl: publicUrl, ...overrides }),
+    log: quiet,
+  });
+  await new Promise((ok) => app.server.listen(port, '127.0.0.1', ok));
+  return { app, dataDir, base: publicUrl, ready: await app.ready };
+}
+const stopEmbedded = async (e) => {
+  await e.app.shutdown();
+  e.app.server.close();
+  rmSync(e.dataDir, { recursive: true, force: true });
+};
+
+test('embedded: sandboxes are reached at /sim on breakAPI itself, and scoring still works', { skip }, async () => {
+  const e = await startEmbedded();
+  try {
+    assert.equal(e.ready, true);
+    const lab = (await call(e.base, 'GET', '/api/lab')).body;
+    assert.equal(lab.playground.available, true);
+    const hardened = await playground(e.app, { preset: 'hardened' });
+    assert.ok(hardened.sandbox.baseUrl.startsWith(`${e.base}/sim/s/sbx_`), hardened.sandbox.baseUrl);
+    const [h] = hardened.phases;
+    assert.equal(h.scan.status, 'completed', JSON.stringify(h.scan.problems || h.scan.stopReason));
+    assert.equal(h.scan.findings.length, 0, describeFindings(h));
+    const leaky = (await playground(e.app, { preset: 'everything' })).phases[0];
+    assert.equal(leaky.score.recall, 1, describeFindings(leaky));
+    assert.equal(leaky.score.falseAlarms, 0);
+    assert.deepEqual(leaky.score.unexplained, []);
+  } finally {
+    await stopEmbedded(e);
+  }
+});
+
+test('embedded: only sandbox traffic is forwarded, with the sim\'s own headers', { skip }, async () => {
+  const e = await startEmbedded();
+  try {
+    const key = e.app.config.simControlKey;
+    assert.equal(key, '', 'no key is configured: the embedded sim makes its own');
+    for (const path of ['/sim/_control/catalog', '/sim/_control/sandboxes', '/sim/healthz', '/sim/nope', '/sim/s', '/sim/s/..%2f_control/catalog']) {
+      const r = await fetch(`${e.base}${path}`, { headers: { authorization: 'Bearer anything' } });
+      assert.equal(r.status, 404, path);
+    }
+    assert.equal((await fetch(`${e.base}/sim/`)).status, 200);
+    assert.equal((await fetch(`${e.base}/sim`)).status, 200);
+    assert.equal((await fetch(`${e.base}/sim/s/sbx_doesnotexist000000/v1/me`)).status, 404);
+    // breakAPI's own pages keep their security headers; sim responses carry the sim's.
+    const own = await fetch(`${e.base}/api/healthz`);
+    assert.ok(own.headers.get('content-security-policy'));
+    const simRoot = await fetch(`${e.base}/sim/`);
+    assert.equal(simRoot.headers.get('content-security-policy'), null);
+    assert.equal(simRoot.headers.get('x-content-type-options'), 'nosniff');
+    // A planted CORS flaw must reach the scanner untouched.
+    const v = await playground(e.app, { vulns: ['config.cors-reflect'] });
+    assert.equal(v.phases[0].score.rows.find((r) => r.id === 'config.cors-reflect').outcome, 'hit');
+  } finally {
+    await stopEmbedded(e);
+  }
+});
+
+test('embedded: shutting down removes sandboxes and stops the sim', { skip }, async () => {
+  const e = await startEmbedded();
+  try {
+    const v = await playground(e.app, { preset: 'hardened' });
+    const id = v.sandbox.baseUrl.split('/').pop();
+    assert.equal((await fetch(`${e.base}/sim/s/${id}/`)).status, 200);
+    await e.app.shutdown();
+    assert.equal((await fetch(`${e.base}/sim/s/${id}/`)).status, 503, 'the embedded sim is gone');
+  } finally {
+    e.app.server.close();
+    rmSync(e.dataDir, { recursive: true, force: true });
+  }
+});
+
+test('embedded: a missing checkout turns the playground off and nothing else', { skip }, async () => {
+  const e = await startEmbedded({ simEmbedDir: join(tmpdir(), 'no-such-sim-checkout') });
+  try {
+    assert.equal(e.ready, false);
+    const lab = (await call(e.base, 'GET', '/api/lab')).body;
+    assert.equal(lab.playground.available, false);
+    assert.ok(lab.examples.length >= 14);
+    assert.equal((await call(e.base, 'POST', '/api/lab/runs', { preset: 'hardened' })).status, 503);
+    assert.equal((await fetch(`${e.base}/sim/`)).status, 503);
+  } finally {
+    await stopEmbedded(e);
+  }
+});
