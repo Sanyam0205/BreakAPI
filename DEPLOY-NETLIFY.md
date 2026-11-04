@@ -18,10 +18,23 @@ Netlify only runs short serverless functions and static files, so it **cannot** 
 
 The two GitHub repos stay separate. The sim repo is cloned into a `sim/` folder inside the Repl, which breakAPI loads at startup. Updating either one is a `git pull`.
 
+## Don't want Netlify? Use Replit alone
+
+breakAPI serves its own pages, so one Repl is enough. Skip Part 3 and Part 4 and change three things in Part 2:
+
+| Secret | Value without Netlify |
+| --- | --- |
+| `BREAKAPI_PUBLIC_URL` | the **Replit address** (the one you open in the browser) |
+| `BREAKAPI_SIM_PUBLIC_URL` | leave it out; it defaults to `BREAKAPI_PUBLIC_URL` |
+| `BREAKAPI_TRUST_PROXY` | still `true` (Replit sits in front of the app) |
+
+Everything else (the clone of `sim/`, the other secrets, the checks in Part 6) is the same. Use the Replit address wherever Part 6 says "Netlify address". You lose only Netlify's CDN and its own domain, and you avoid its proxy time limit.
+
 ## Read this first
 
-- **Replit free plan.** I could not confirm from Replit's own pages that the free plan can host a server that stays up. This guide runs breakAPI from the Repl's **workspace** (the Run button), which sleeps when idle. After a pause, the first request is slow or fails until the Repl is awake. Use it as a demo; use a Reserved VM or another always-on host when you need it to stay up ([DEPLOY.md](DEPLOY.md)).
-- **Workspace data is disposable.** Treat accounts and projects as throwaway. Use fake test accounts only.
+- **Replit free plan.** I could not confirm from Replit's own pages that the free plan can host a server that stays up. This guide runs breakAPI from the Repl's **workspace** (the Run button), which sleeps when idle. After a pause, the first request is slow or fails until the Repl is awake. Use it as a demo; use a Reserved VM or another always-on host when you need it to stay up (the README's [Running on your own server](README.md#running-on-your-own-server)).
+- **Where the data lives.** breakAPI stores everything (the administrator, user records, projects, scans, the sessions file) in `data/db.json` on the Repl's disk, and it needs no database. A workspace's files normally survive the Repl sleeping and waking, so the administrator you create stays; I could not confirm this against Replit's own pages, so check it once with the "Leave it ~30 minutes" step in Part 6. A **published** deployment is different: Replit says not to rely on a published app's filesystem, and republishing replaces it. That is why this guide runs from the workspace. Either way, treat the data as a demo, not a record to keep, and use fake test accounts only.
+- **Issued accounts end when the app restarts, by design.** Waking from sleep is a restart. The administrator is unaffected, and a regular user's record stays but their access ends, so an administrator uses **Admin → Issue again** to give them a new password and setup token. A database would not change this: it is a rule in the app (access lasts until the app stops running, or 30 days at most), not a storage limit.
 - **One thing I could not test here:** a scan reaching the Repl's own public address from inside the Repl. It needs the Repl to call its own public URL. If your Repl cannot, the playground shows the sandbox as unreachable; see Troubleshooting.
 - **Netlify gives up on a proxied request after about 26 seconds** ([Netlify docs](https://docs.netlify.com/manage/routing/redirects/rewrites-proxies)). Scans run in the background and are not affected.
 
@@ -179,6 +192,19 @@ Open the **Netlify** address in a private window.
 
 ---
 
+## A cleaner domain
+
+The Netlify address is the only one you give to people. The Replit address is the backend; the browser never uses it, though it does appear in the lab (the sandbox address shown on a playground run).
+
+| You want | Do this |
+| --- | --- |
+| A shorter free address | **Site configuration → Change site name**, giving `https://<name>.netlify.app` |
+| Your own domain, such as `breakapi.example.com` | **Domain management → Add a domain** and follow the DNS instructions Netlify shows for it (a subdomain normally needs one `CNAME` record; an apex domain can use Netlify DNS). Netlify issues the HTTPS certificate itself once DNS is correct |
+
+**After the address changes, update Replit.** Set `BREAKAPI_PUBLIC_URL` to the new address exactly (`https`, no trailing slash) and **Stop** and **Run**. Cookies, the cross-origin check and emailed links are all built from it, so until you do, sign-in loops back to the login page or fails with `Cross-origin request refused`. Use the new address everywhere from then on; the old one may stop signing in.
+
+Nothing else changes: `BACKEND_URL` (Netlify) and `BREAKAPI_SIM_PUBLIC_URL` (Replit) point at the Replit address, which stays the same.
+
 ## Secrets reference
 
 **Replit** (Tools → Secrets):
@@ -219,7 +245,8 @@ There are no other secrets: no SMTP, no sim control key, no GitHub token (unless
 
 | Limit | What it means |
 | --- | --- |
-| Sleeping | Both the sim and breakAPI go down together when the Repl sleeps. Netlify shows an error until it wakes |
+| Sleeping | Both the sim and breakAPI go down together when the Repl sleeps. Netlify shows an error until it wakes. Sandboxes and lab runs are lost; the administrator and projects are kept (see "Where the data lives") |
+| No Replit database | breakAPI does not use Replit's PostgreSQL. It keeps the data in a JSON file, which keeps the app free of dependencies. A database would help only a published deployment, whose disk is replaced when you republish |
 | No email | Password resets and authorizer confirmations are written to a file on the instance, not delivered. Users should authorize their own projects, and an administrator uses **Issue again** when someone forgets a password |
 | Real targets need proof | A real API must serve a verification token or publish it in DNS before it can be scanned |
 | Playground scans are read-only | The sim has no write routes yet, so playground runs never send POST, PUT, PATCH or DELETE |

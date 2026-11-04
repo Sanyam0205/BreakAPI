@@ -6,7 +6,7 @@ const problems = configProblems(config);
 if (problems.length) {
   console.error('breakAPI will not start with this configuration:');
   for (const p of problems) console.error(`  - ${p}`);
-  console.error('See DEPLOY.md for the required settings.');
+  console.error('See the README (Running on your own server) for the required settings.');
   process.exit(1);
 }
 

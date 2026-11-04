@@ -23,7 +23,7 @@ Consent is the product's first step, not a disclaimer: no request is sent until 
 Workflow: create project → record authorization → set base URL and import endpoints (OpenAPI JSON, Postman, manual list) → add test accounts with owned resource IDs → set safety controls → run scan (live progress, pause/stop) → read report → fix → retest and compare. Users run it against local dev servers, staging, or their own production with test accounts.
 
 ## Capabilities and Constraints
-- Node app with no dependencies and no build step. Multi-user: email/password accounts with `admin` and `user` roles, project membership, email verification and authorizer confirmation by email. Runs locally (`npm start`) or hosted (Docker + HTTPS, see DEPLOY.md); intended to grow into a hosted SaaS. Single-process JSON data store.
+- Node app with no dependencies and no build step. Multi-user: email/password accounts with `admin` and `user` roles, project membership, email verification and authorizer confirmation by email. Runs locally (`npm start`) or hosted (behind an HTTPS proxy, see the README); intended to grow into a hosted SaaS. Single-process JSON data store.
 - Strict CSP (`default-src 'self'`): no inline styles/scripts, no third-party assets at runtime.
 - Non-destructive by default; DELETE is never sent; write methods require separate authorization.
 - Cannot prove an API is secure; findings may include false positives.

@@ -14,9 +14,18 @@ visitor ──▶ breakAPI (Repl 1) ──control API, shared key──▶ break
 
 The lab works without the sim: the built-in examples run against a practice API inside breakAPI. The sim adds the **Simulation playground**, where visitors choose which flaws to plant, then scan, score and retest.
 
-For a host where your data is safe across restarts, see [DEPLOY.md](DEPLOY.md).
+For a host where your data is safe across restarts, see the README's [Running on your own server](README.md#running-on-your-own-server).
 
 **Only one Replit app available (free plan)?** Run the sim inside the breakAPI Repl and put the front end on Netlify: see [DEPLOY-NETLIFY.md](DEPLOY-NETLIFY.md).
+
+---
+
+## A cleaner address
+
+Replit gives each app a long, generated address (`…replit.app` or `…replit.dev`). Two ways to present a nicer one:
+
+- **Keep the public app on Netlify** and use Replit only as the backend. Netlify serves the pages on `https://<name>.netlify.app` or your own domain, and people never see the Replit address for breakAPI itself. Follow Part 3 and "A cleaner domain" in [DEPLOY-NETLIFY.md](DEPLOY-NETLIFY.md); with two Replit apps, `BACKEND_URL` is the breakAPI app's address, and `BREAKAPI_PUBLIC_URL` on that app is the **Netlify** address. The sim stays on its own address and breakAPI keeps using `BREAKAPI_SIM_URL` for it.
+- **A custom domain on Replit.** Replit supports linking your own domain to a published app; check Replit's current docs and plans, since I could not confirm whether the free plan includes it. If you use one, set `BREAKAPI_PUBLIC_URL` (and `SIM_PUBLIC_URL` on the sim) to the new address and publish again.
 
 ---
 

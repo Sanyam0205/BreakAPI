@@ -242,7 +242,7 @@ function renderLogin(kind) {
       ${isUser ? '<div class="field"><label for="lt">Setup token</label><input id="lt" type="password" name="setupToken" autocomplete="off" required></div>' : ''}
       <button class="btn primary" type="submit">Sign in</button>
     </form>
-    <div class="guest-links"><a href="#/">Back</a>${authInfo?.mailMode === 'smtp' ? '<a href="#/forgot">Forgot your password?</a>' : `<span class="dim">Forgot your password? ${isUser ? 'Ask your administrator to issue a new one.' : 'See “Recovery without email” in DEPLOY.md.'}</span>`}</div>`);
+    <div class="guest-links"><a href="#/">Back</a>${authInfo?.mailMode === 'smtp' ? '<a href="#/forgot">Forgot your password?</a>' : `<span class="dim">Forgot your password? ${isUser ? 'Ask your administrator to issue a new one.' : 'See “Recovery without email” in the README.'}</span>`}</div>`);
   onSubmit(document.getElementById('login-form'), async (v, btn) => {
     const r = await act(() => api('POST', '/api/auth/login', v), null, btn);
     if (!r) return;

@@ -1,9 +1,0 @@
-# Replace with your domain. Caddy obtains and renews the TLS certificate.
-breakapi.example.com {
-	encode gzip
-	reverse_proxy breakapi:7300
-	# breakAPI sets its own security headers (CSP, HSTS over HTTPS, frame and referrer policies).
-	request_body {
-		max_size 6MB
-	}
-}

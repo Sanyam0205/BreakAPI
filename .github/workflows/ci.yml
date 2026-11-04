@@ -25,12 +25,6 @@ jobs:
         env:
           BREAKAPI_SIM_DIR: .sim
           BREAKAPI_REQUIRE_SIM: '1'
-  docker:
-    runs-on: ubuntu-latest
-    needs: test
-    steps:
-      - uses: actions/checkout@v4
-      - run: docker build -t breakapi:ci .
-      - name: Refuses to start without production settings
+      - name: Production refuses to start without its settings
         run: |
-          if docker run --rm breakapi:ci; then echo "expected a startup refusal"; exit 1; fi
+          if BREAKAPI_ENV=production node src/main.js; then echo "expected a startup refusal"; exit 1; fi

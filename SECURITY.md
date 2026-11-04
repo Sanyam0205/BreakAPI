@@ -68,4 +68,4 @@ Findings from the security review of the single-operator version, and how each w
 
 Please report suspected vulnerabilities privately, not in a public issue. On GitHub, open the repository's **Security** tab and choose **Report a vulnerability** (private vulnerability reporting; the repository owner enables it under *Settings → Code security*). Include steps to reproduce. Do not test against deployments you do not own.
 
-The deliberately vulnerable practice API in `demo/` is not a vulnerability: it exists to be scanned, and binds to loopback only. The Docker image includes it for the demo lab. The same goes for the planted flaws in the separate `breakapi-sim` repo; flaws in its control API or sandbox isolation are in scope.
+The deliberately vulnerable practice API in `demo/` is not a vulnerability: it exists to be scanned, and binds to loopback only. The same goes for the planted flaws in the separate `breakapi-sim` repo; flaws in its control API or sandbox isolation are in scope.

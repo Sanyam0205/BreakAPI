@@ -456,7 +456,7 @@ export function createApp({ config, log = console } = {}) {
   // opts: public (no session), admin, verified (email verified), limit (body bytes)
   const routes = [
     // --- health ---
-    // /healthz and /readyz suit Docker and Kubernetes. Google-hosted platforms (Cloud Run, which Replit
+    // /healthz and /readyz suit load balancers and orchestrators. Google-hosted platforms (Cloud Run, which Replit
     // deployments use) answer /healthz themselves and never forward it, so /api/healthz is the one to use there.
     ['GET', /^\/(?:api\/)?healthz$/, async () => ({ ok: true, version: VERSION }), { public: true, raw: true }],
     ['GET', /^\/(?:api\/)?readyz$/, async () => {
