@@ -197,7 +197,7 @@ Only test APIs you own or have written permission to test.
 
 ## Running the practice API by hand
 
-To explore on your own machine instead of using the lab, run the practice API separately. [TESTING.md](TESTING.md) and [TEST-SCENARIOS.md](TEST-SCENARIOS.md) cover this.
+To explore on your own machine instead of using the lab, run the practice API separately.
 
 ```bash
 npm run demo                               # practice API on localhost:4010

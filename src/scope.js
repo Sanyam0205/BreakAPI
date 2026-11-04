@@ -47,7 +47,17 @@ export const hostAllowed = (authorization, url) => !!matchingHost(authorization,
  * loopback demo API it started itself (src/lab.js); no request can set this flag or choose that host.
  */
 export function targetConfig(project) {
-  return project?.lab ? { ...getConfig(), allowLocalTargets: true } : getConfig();
+  // A playground project scans the separately hosted simulation, so it gets no loopback exemption.
+  return project?.lab && !project.simHost ? { ...getConfig(), allowLocalTargets: true } : getConfig();
+}
+
+/**
+ * The simulation host of a lab playground project. It is copied from server configuration
+ * (BREAKAPI_SIM_URL) when the lab builds the project in memory. Real projects never carry it, and no
+ * request can set it, so this is not a way around ownership proof for anything a visitor chooses.
+ */
+export function isSimEntry(project, entry) {
+  return !!(project?.lab && project.simHost && String(entry).toLowerCase() === String(project.simHost).toLowerCase());
 }
 
 /** Local hosts skip the verification challenge, but only where local targets are allowed at all. */
@@ -66,6 +76,7 @@ export function needsVerification(baseUrl) {
 
 /** Verification only counts for the authorization it was made under, and only while fresh. */
 export function entryVerified(project, entry, at = new Date()) {
+  if (isSimEntry(project, entry)) return true;
   const a = project.authorization;
   return (project.verifiedHosts || []).some((v) => v.host === String(entry).toLowerCase()
     && v.authorizationId === a?.id
@@ -79,11 +90,12 @@ export function hostStatus(project, at = new Date()) {
     const refused = hostRefusal(host, targetConfig(project));
     const v = (project.verifiedHosts || []).find((x) => x.host === host.toLowerCase() && x.authorizationId === project.authorization.id);
     if (refused) return { host, local: false, refused, verified: false, method: 'refused by server policy', at: null, stale: false };
+    const sim = isSimEntry(project, host);
     return {
       host,
       local,
       verified: local || entryVerified(project, host, at),
-      method: local ? 'local development only (no ownership proof)' : v?.method,
+      method: local ? 'local development only (no ownership proof)' : sim ? 'breakAPI simulation, configured by the server operator' : v?.method,
       at: v?.at,
       stale: !local && !!v && !entryVerified(project, host, at),
     };

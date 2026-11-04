@@ -7,11 +7,15 @@ import { hashUndertaking, UNDERTAKING_VERSION } from './undertaking.js';
 import { randomToken } from './auth.js';
 import { ALL_TESTS, TEST_LABELS } from './scope.js';
 import { nowIso, sleep } from './util.js';
+import { resolvePlayground, catalogTests, scoreRun, LabConfigError } from './labscore.js';
 
-// The demo lab runs fixed examples against the deliberately vulnerable demo API, started on a loopback
-// port for each run and closed afterwards. Visitors choose an example id and nothing else: no host, URL,
-// header or credential ever comes from a request, so the lab cannot be pointed at another system.
+// The demo lab has two kinds of run, and neither takes a target from a visitor:
+//  - examples: fixed scenarios against the built-in demo API, started on a loopback port per run;
+//  - playground: a sandbox on the separately hosted simulation backend (BREAKAPI_SIM_URL) with the
+//    vulnerabilities the visitor picked from its catalog. Visitors choose catalog ids and nothing else;
+//    the sandbox address is built from server configuration, never from a request or a sim response.
 const MAX_ACTIVE = 2;
+const MAX_PHASES = 6;
 const MAX_KEPT = 30;
 const KEEP_MS = 3600_000;
 const SPEC = new URL('../demo/openapi.json', import.meta.url);
@@ -204,15 +208,55 @@ function buildProject(ex, runId, key) {
   };
 }
 
-export function createLab({ key, log = console }) {
+const ACCOUNT_LABELS = new Set(['alice', 'bob', 'root']);
+
+/** Sandbox accounts → encrypted lab accounts. The sim is operator-run, but its answer is still checked. */
+function sandboxAccounts(box, key) {
+  return (Array.isArray(box?.accounts) ? box.accounts : [])
+    .filter((a) => ACCOUNT_LABELS.has(a?.label) && typeof a.token === 'string' && a.token.length < 4096)
+    .map((a) => ({
+      id: `acct_${a.label}`,
+      label: a.label,
+      role: a.role === 'admin' ? 'admin' : 'user',
+      authType: 'bearer',
+      secretEnc: encrypt(key, a.token),
+      secretHint: `${a.label}'s sandbox token`,
+      resourceIds: Object.fromEntries(Object.entries(a.resourceIds || {}).filter(([k, v]) => /^\w{1,40}$/.test(k) && typeof v === 'string' && v.length < 200)),
+      createdAt: nowIso(),
+    }));
+}
+
+const SANDBOX_ID = /^sbx_[A-Za-z0-9_-]{16}$/;
+
+export function createLab({ key, log = console, sim = null, simUrl = '', dailyRuns = 300 }) {
   // In memory on purpose: lab runs are never mixed with real projects, accounts or the data file.
   const store = { data: { projects: {}, scans: {} }, save() {}, saveNow() {} };
   const runs = new Map();
+  const simOrigin = simUrl ? new URL(simUrl).origin : '';
+  let starting = 0;
+  const daily = { day: '', count: 0 };
+
+  const active = () => [...runs.values()].filter((r) => r.status === 'running').length + starting;
+  const busy = () => (active() >= MAX_ACTIVE ? { error: 429, message: 'The demo lab is busy with other runs. Try again in a moment.' } : null);
+  /** Counts one run against the server-wide daily cap; null when allowed. */
+  const takeDaily = () => {
+    const today = new Date().toISOString().slice(0, 10);
+    if (daily.day !== today) Object.assign(daily, { day: today, count: 0 });
+    if (daily.count >= dailyRuns) return { error: 429, message: 'The demo lab has reached its limit for today. Try again tomorrow.' };
+    daily.count++;
+    return null;
+  };
+  const simFailure = (err) => {
+    if (err?.status === 400) return { error: 400, message: err.message };
+    log.error?.('simulation backend call failed', err);
+    return { error: 503, message: 'The simulation backend is not available right now. Try again in a moment.' };
+  };
 
   const forget = (run) => {
     for (const p of run.phases) if (p.scanId) delete store.data.scans[p.scanId];
     delete store.data.projects[run.projectId];
     runs.delete(run.id);
+    if (run.sandbox && sim) sim.remove(run.sandbox.id).catch(() => {});
   };
   const prune = () => {
     const finished = [...runs.values()].filter((r) => r.status === 'finished');
@@ -259,13 +303,12 @@ export function createLab({ key, log = console }) {
     const ex = EXAMPLES.find((x) => x.id === exampleId);
     if (!ex) return { error: 404, message: 'There is no example with that id.' };
     prune();
-    if ([...runs.values()].filter((r) => r.status === 'running').length >= MAX_ACTIVE) {
-      return { error: 429, message: 'The demo lab is busy with other runs. Try again in a moment.' };
-    }
+    const refused = busy() || takeDaily();
+    if (refused) return refused;
     const id = randomToken(16);
     const project = buildProject(ex, randomToken(6).replace(/-/g, '_'), key);
     store.data.projects[project.id] = project;
-    const run = { id, exampleId: ex.id, title: ex.title, projectId: project.id, status: 'running', createdAt: nowIso(), phases: ex.phases.map((p) => ({ label: p.label })) };
+    const run = { id, kind: 'example', exampleId: ex.id, title: ex.title, projectId: project.id, status: 'running', createdAt: nowIso(), phases: ex.phases.map((p) => ({ label: p.label })) };
     runs.set(id, run);
     execute(run, ex)
       .catch((err) => {
@@ -279,16 +322,187 @@ export function createLab({ key, log = console }) {
     return { id };
   };
 
+  // ---------- playground: sandboxes on the simulation backend ----------
+
+  const sandboxBase = (sandboxId) => `${simOrigin}/s/${sandboxId}`;
+
+  /** Catalog for the lab page, or why the playground is unavailable. */
+  const playground = async () => {
+    if (!sim) return { available: false, reason: 'The simulation playground is not set up on this server.' };
+    try {
+      const c = await sim.catalog();
+      return {
+        available: true,
+        catalogVersion: c.version,
+        tests: catalogTests(c).map((t) => ({ id: t, label: TEST_LABELS[t] || t })),
+        vulns: c.vulns.map(({ id, test, title, severity, summary, patched }) => ({ id, test, title, severity, summary, patched })),
+        presets: c.presets.map(({ id, title, summary, vulns }) => ({ id, title, summary, vulns })),
+      };
+    } catch (err) {
+      log.error?.('simulation catalog unavailable', err);
+      return { available: false, reason: 'The simulation backend is not reachable right now.' };
+    }
+  };
+
+  /** Scans the run's sandbox once more as a new phase; later phases are compared with the one before. */
+  const runPlaygroundPhase = async (run, index, seenBefore) => {
+    const project = store.data.projects[run.projectId];
+    const phase = run.phases[index];
+    const previous = run.phases.slice(0, index).reverse().find((p) => p.scanId && store.data.scans[p.scanId]?.status === 'completed');
+    const scan = createScan(store, project, { previousScanId: previous?.scanId });
+    scan.startedBy = { email: 'demo-lab@breakapi.invalid', name: 'Demo lab', emailVerifiedAt: scan.createdAt };
+    scan.verificationSnapshot = [{ host: project.simHost, local: false, sim: true }];
+    phase.scanId = scan.id;
+    await runScan({ store, key }, scan.id);
+    try {
+      const after = await sim.get(run.sandbox.id);
+      const before = seenBefore || { requests: 0, writes: 0, deletes: 0 };
+      phase.seen = Object.fromEntries(['requests', 'writes', 'deletes'].map((k) => [k, Math.max(0, (after.seen?.[k] || 0) - (before[k] || 0))]));
+    } catch {
+      phase.seen = null;
+    }
+    phase.score = scoreRun(run.catalog, { planted: phase.vulns, findings: scan.findings, tests: project.authorization.allowedTests });
+  };
+
+  const launch = (run, fn) => {
+    run.status = 'running';
+    delete run.finishedAt;
+    fn()
+      .catch((err) => {
+        run.error = 'The demo run failed unexpectedly. Try it again.';
+        log.error?.('demo lab run failed', err);
+      })
+      .finally(() => {
+        run.status = 'finished';
+        run.finishedAt = nowIso();
+      });
+  };
+
+  const presetTitle = (catalog, input, vulns) => catalog.presets.find((p) => p.id === input.preset)?.title
+    || (vulns.length ? `Custom scenario (${vulns.length} planted)` : 'Custom scenario (nothing planted)');
+
+  /** input: { preset } or { vulns: [catalog ids] }. Nothing else from the request is read. */
+  const startPlayground = async (input) => {
+    if (!sim) return { error: 404, message: 'The simulation playground is not set up on this server.' };
+    prune();
+    let refused = busy();
+    if (refused) return refused;
+    let catalog;
+    let vulns;
+    try {
+      catalog = await sim.catalog();
+      vulns = resolvePlayground(catalog, input);
+    } catch (err) {
+      if (err instanceof LabConfigError) return { error: 400, message: err.message };
+      return simFailure(err);
+    }
+    refused = busy() || takeDaily();
+    if (refused) return refused;
+    starting++;
+    let box;
+    let project;
+    try {
+      box = await sim.create(vulns);
+      if (!SANDBOX_ID.test(String(box?.id))) throw new Error('the simulation returned no sandbox id');
+      const spec = await sim.spec(box.id);
+      const tests = catalogTests(catalog);
+      const baseUrl = sandboxBase(box.id);
+      project = {
+        id: `labp_${randomToken(6).replace(/-/g, '_')}`,
+        lab: true,
+        simHost: sim.host,
+        name: `Demo lab playground: ${presetTitle(catalog, input, vulns)}`,
+        createdAt: nowIso(),
+        members: [],
+        audit: [],
+        verifiedHosts: [],
+        // Read-only checks only: the sandbox has no write routes yet, so no write is ever authorized.
+        controls: { ...CONTROLS, maxWrites: 0 },
+        target: { baseUrl, endpoints: importSpec('openapi', spec).endpoints },
+        accounts: sandboxAccounts(box, key),
+      };
+      project.authorization = buildAuthorization({ tests, writes: false }, {}, sim.host);
+    } catch (err) {
+      if (box?.id && SANDBOX_ID.test(box.id)) sim.remove(box.id).catch(() => {});
+      return simFailure(err);
+    } finally {
+      starting--;
+    }
+    store.data.projects[project.id] = project;
+    const id = randomToken(16);
+    const run = {
+      id,
+      kind: 'playground',
+      exampleId: 'playground',
+      title: presetTitle(catalog, input, vulns),
+      projectId: project.id,
+      createdAt: nowIso(),
+      catalog,
+      sandbox: { id: box.id, seed: box.seed, expiresAt: box.expiresAt },
+      phases: [{ label: 'Scan', vulns }],
+    };
+    runs.set(id, run);
+    launch(run, () => runPlaygroundPhase(run, 0, box.seen));
+    return { id };
+  };
+
+  /** Re-plants the sandbox with a new set of flaws and scans it again, compared with the last scan. */
+  const retest = async (id, input) => {
+    const run = runs.get(id);
+    if (!run || run.kind !== 'playground') return { error: 404, message: 'This run is no longer available.' };
+    if (run.status === 'running' || run.retesting) return { error: 409, message: 'This run is still scanning. Wait for it to finish.' };
+    if (run.phases.length >= MAX_PHASES) return { error: 409, message: `A run can have at most ${MAX_PHASES} scans. Start a new one.` };
+    let vulns;
+    try {
+      vulns = resolvePlayground(run.catalog, input);
+    } catch (err) {
+      if (err instanceof LabConfigError) return { error: 400, message: err.message };
+      throw err;
+    }
+    const refused = busy() || takeDaily();
+    if (refused) return refused;
+    const project = store.data.projects[run.projectId];
+    starting++;
+    run.retesting = true;
+    let box;
+    try {
+      try {
+        box = await sim.configure(run.sandbox.id, vulns);
+      } catch (err) {
+        if (err?.status !== 404) throw err;
+        // The sandbox expired or the sim restarted: rebuild it from the same seed, so ids stay the same.
+        box = await sim.create(vulns, run.sandbox.seed);
+        if (!SANDBOX_ID.test(String(box?.id))) throw new Error('the simulation returned no sandbox id');
+        run.sandbox.id = box.id;
+        project.target.baseUrl = sandboxBase(box.id);
+      }
+      // Reconfiguring re-keys the sandbox: the old tokens stop working, so the accounts are replaced.
+      project.accounts = sandboxAccounts(box, key);
+      run.sandbox.expiresAt = box.expiresAt;
+    } catch (err) {
+      return simFailure(err);
+    } finally {
+      starting--;
+      run.retesting = false;
+    }
+    if (!runs.has(id)) return { error: 404, message: 'This run is no longer available.' };
+    const index = run.phases.push({ label: `Retest ${run.phases.length}`, vulns }) - 1;
+    launch(run, () => runPlaygroundPhase(run, index, box.seen));
+    return { id, phase: index };
+  };
+
   const view = (id) => {
     const run = runs.get(id);
     if (!run) return null;
-    const { id: runId, exampleId, title, status, createdAt, finishedAt, error, stopRequested } = run;
+    const { id: runId, kind, exampleId, title, status, createdAt, finishedAt, error, stopRequested } = run;
     return {
-      id: runId, exampleId, title, status, createdAt, finishedAt, error, stopRequested: !!stopRequested,
+      id: runId, kind, exampleId, title, status, createdAt, finishedAt, error, stopRequested: !!stopRequested,
+      ...(run.sandbox ? { sandbox: { baseUrl: sandboxBase(run.sandbox.id), expiresAt: run.sandbox.expiresAt }, catalogVersion: run.catalog.version, maxPhases: MAX_PHASES } : {}),
       phases: run.phases.map((p) => {
         const s = p.scanId && store.data.scans[p.scanId];
         return {
           label: p.label,
+          ...(p.vulns ? { vulns: p.vulns, score: p.score || null } : {}),
           seen: p.seen || null,
           scan: s ? {
             id: s.id, status: s.status, startedAt: s.startedAt, finishedAt: s.finishedAt, requestsSent: s.requestsSent, writesSent: s.writesSent || 0,
@@ -322,7 +536,9 @@ export function createLab({ key, log = console }) {
   const shutdown = async () => {
     for (const id of runs.keys()) stop(id);
     while ([...runs.values()].some((r) => r.status === 'running')) await sleep(50);
+    // Best effort: sandboxes also expire on their own.
+    if (sim) await Promise.allSettled([...runs.values()].filter((r) => r.sandbox).map((r) => sim.remove(r.sandbox.id)));
   };
 
-  return { examples: () => EXAMPLES.map(publicExample), start, view, stop, reportData, shutdown };
+  return { examples: () => EXAMPLES.map(publicExample), playground, start, startPlayground, retest, view, stop, reportData, shutdown };
 }

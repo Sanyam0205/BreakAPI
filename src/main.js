@@ -4,7 +4,7 @@ import { createApp, VERSION } from './server.js';
 const config = loadConfig();
 const problems = configProblems(config);
 if (problems.length) {
-  console.error('breakAPI will not start in production with this configuration:');
+  console.error('breakAPI will not start with this configuration:');
   for (const p of problems) console.error(`  - ${p}`);
   console.error('See DEPLOY.md for the required settings.');
   process.exit(1);
@@ -35,6 +35,10 @@ app.server.listen(config.port, config.host, () => {
   if (!config.production && config.host !== '127.0.0.1' && config.host !== 'localhost') {
     console.warn('Warning: listening beyond localhost in development mode. Use BREAKAPI_ENV=production behind TLS for anything shared.');
   }
+  if (config.hosted && (config.allowLocalTargets || config.allowPrivateTargets)) {
+    console.warn('Warning: this server is hosted but lets users scan local or private addresses. Set BREAKAPI_ALLOW_LOCAL_TARGETS=false and BREAKAPI_ALLOW_PRIVATE_TARGETS=false.');
+  }
+  console.log(config.simUrl ? `Lab playground: simulation at ${new URL(config.simUrl).host}` : 'Lab playground: off (set BREAKAPI_SIM_URL and BREAKAPI_SIM_CONTROL_KEY to turn it on)');
 });
 
 let stopping = false;

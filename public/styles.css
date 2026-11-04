@@ -407,6 +407,16 @@ details.fold:not([open]) > summary { border-bottom: 0; }
 .lab-main summary { cursor: pointer; font-size: var(--s-1); color: var(--cyan); }
 .lab-main details dl { margin-top: 10px; }
 .lab-phases { margin-bottom: 20px; }
+.pg-grid { margin: 14px 0 6px; }
+.pg-group { border: 0; margin: 0 0 12px; padding: 0; min-width: 0; }
+.pg-group legend { font-size: var(--s-1); font-weight: 700; color: var(--cyan); margin-bottom: 8px; padding: 0; }
+#pg-form .actions, #pg-retest .actions { display: flex; gap: 12px; align-items: center; }
+.lab-sandbox { margin: 0 0 14px; overflow-wrap: anywhere; }
+table.score td { vertical-align: baseline; }
+.o-hit b { color: var(--green); }
+.o-miss b { color: var(--red); }
+.o-false-alarm b { color: var(--yellow); }
+.o-clean td { color: var(--dim); }
 .issued { border-color: rgba(240, 196, 90, 0.45); }
 .issued code { overflow-wrap: anywhere; }
 @media (max-width: 720px) {

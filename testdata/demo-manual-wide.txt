@@ -1,4 +1,4 @@
-# breakAPI manual endpoint list — WIDE version of demo-manual.txt for the test scenarios in TEST-SCENARIOS.md.
+# breakAPI manual endpoint list — WIDE version of demo-manual.txt.
 # Format: METHOD /path[?query=example] [public] [admin]
 #
 # The first 8 lines are exactly demo-manual.txt. Of the other lines, the demo API really serves only

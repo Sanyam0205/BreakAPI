@@ -430,7 +430,8 @@ async function renderAdmin(issued) {
     <section class="pane"><div class="pane-title"><h2>Server</h2><span class="dim">read-only; set through environment variables</span></div>
       <div class="pane-body"><dl class="kv">
         <dt>Public URL</dt><dd>${esc(c.publicUrl || 'not set (development)')}</dd>
-        <dt>Demo lab</dt><dd>${c.lab ? 'on, open to anyone' : 'off'}</dd>
+        <dt>Demo lab</dt><dd>${c.lab ? `on, open to anyone · at most ${esc(c.labDailyRuns)} runs a day` : 'off'}</dd>
+        <dt>Simulation</dt><dd>${c.simulation === 'off' ? 'off (the lab shows only the built-in examples)' : `<code>${esc(c.simulation)}</code> · lab playground on`}</dd>
         <dt>User accounts</dt><dd>issued by administrators · 30 days at most · end if the app restarts</dd>
         <dt>Local targets</dt><dd>${c.allowLocalTargets ? '<span class="c-medium">allowed</span>' : 'refused'}</dd>
         <dt>Private-network targets</dt><dd>${c.allowPrivateTargets ? '<span class="c-medium">allowed</span>' : 'refused'}</dd>
@@ -524,10 +525,65 @@ function labShell(path, right = '') {
   document.getElementById('banner').innerHTML = '';
 }
 
+// The playground catalog, kept for the run page's retest form.
+let labCatalog = null;
+
+/** Checkbox grid of catalog flaws, grouped by the breakAPI test that finds them. */
+function vulnGrid(pg, checked = []) {
+  const on = new Set(checked);
+  return pg.tests.map((t) => {
+    const items = pg.vulns.filter((v) => v.test === t.id);
+    return `<fieldset class="pg-group"><legend>${esc(t.label)}</legend>${items.map((v) => `<label class="check"><input type="checkbox" name="vuln" value="${esc(v.id)}" ${on.has(v.id) ? 'checked' : ''}>
+      <span>${tag(v.severity)} ${esc(v.title)}<span class="help">${esc(v.summary)}</span></span></label>`).join('')}</fieldset>`;
+  }).join('');
+}
+
+const checkedVulns = (form) => [...form.querySelectorAll('input[name="vuln"]:checked')].map((x) => x.value).sort();
+
+function playgroundPane(pg) {
+  return `<section class="pane" id="playground"><div class="pane-title"><h2>Simulation playground</h2><span class="dim">your own sandbox of a multi-tenant SaaS API</span></div>
+    <div class="pane-body">
+      <p class="small">Pick which flaws to plant in a fresh sandbox, then let breakAPI find them. Patched flaws serve the secure version, so anything reported for them is a false alarm. The sandbox runs on a separate simulation server, holds only fictional data and is deleted within the hour.</p>
+      <form id="pg-form">
+        <div class="filters" role="group" aria-label="Presets">${pg.presets.map((p) => `<button type="button" class="chip" data-preset="${esc(p.id)}" aria-pressed="false" title="${esc(p.summary)}">${esc(p.title)}</button>`).join('')}</div>
+        <div class="grid3 pg-grid">${vulnGrid(pg)}</div>
+        <div class="actions"><button class="btn primary" type="submit">Plant and scan</button><span class="dim small" id="pg-count">0 planted</span></div>
+      </form>
+    </div></section>`;
+}
+
+function wirePlayground(form, pg, submit) {
+  const sync = () => {
+    const ids = checkedVulns(form);
+    form.querySelector('#pg-count').textContent = `${ids.length} planted`;
+    for (const b of form.querySelectorAll('[data-preset]')) {
+      const p = pg.presets.find((x) => x.id === b.dataset.preset);
+      b.setAttribute('aria-pressed', String(JSON.stringify([...p.vulns].sort()) === JSON.stringify(ids)));
+    }
+  };
+  form.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-preset]');
+    if (!b) return;
+    const p = pg.presets.find((x) => x.id === b.dataset.preset);
+    for (const box of form.querySelectorAll('input[name="vuln"]')) box.checked = p.vulns.includes(box.value);
+    sync();
+  });
+  form.addEventListener('change', sync);
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const ids = checkedVulns(form);
+    // A preset gives the run a readable name; otherwise the ids are sent as they are.
+    const preset = pg.presets.find((p) => JSON.stringify([...p.vulns].sort()) === JSON.stringify(ids));
+    submit(preset ? { preset: preset.id } : { vulns: ids }, form.querySelector('[type="submit"]'));
+  });
+  sync();
+}
+
 async function renderLab() {
   view = { name: 'lab' };
-  const { examples } = await api('GET', '/api/lab');
-  labShell([{ label: 'lab', href: '#/lab' }], `<span>${examples.length} examples</span>`);
+  const { examples, playground: pg } = await api('GET', '/api/lab');
+  labCatalog = pg?.available ? pg : null;
+  labShell([{ label: 'lab', href: '#/lab' }], `<span>${examples.length} examples${labCatalog ? ' · playground' : ''}</span>`);
   const row = (x) => `<li class="lab-row">
     <div class="lab-main">
       <h3>${esc(x.title)}</h3>
@@ -550,8 +606,43 @@ async function renderLab() {
       <p class="lede">Run a real scan against a built-in practice API with planted flaws. Each run starts its own copy, which is closed when the run ends. You can’t enter a target here, so nothing outside this server is ever contacted.</p>
       <p class="small"><a href="/EXAMPLES.md" target="_blank" rel="noopener">Read the guide to every example</a></p>
     </div></div>
+    ${labCatalog ? playgroundPane(labCatalog) : ''}
     ${group('testing', 'Kinds of API testing', 'what breakAPI looks for')}
     ${group('safety', 'Safety controls', 'what stops breakAPI itself')}`;
+  const form = document.getElementById('pg-form');
+  if (form) {
+    wirePlayground(form, labCatalog, async (input, btn) => {
+      const r = await act(() => api('POST', '/api/lab/runs', input), null, btn);
+      if (r) location.hash = `#/lab/run/${r.id}`;
+    });
+  }
+}
+
+const OUTCOME = {
+  hit: ['found', 'Planted and found'],
+  miss: ['missed', 'Planted but not found'],
+  'false-alarm': ['false alarm', 'Patched, but reported anyway'],
+  clean: ['clean', 'Patched and not reported'],
+};
+
+function scorePane(score) {
+  const found = score.planted ? `${score.hits} of ${score.planted} planted found` : 'nothing planted';
+  return `<section class="pane"><div class="pane-title"><h2>Planted vs detected</h2><span class="dim">ground truth from the sandbox</span>
+      <span class="end"><span class="${score.hits === score.planted ? 'st-completed' : 'c-medium'}">${found}</span> <span class="dim">·</span> <span class="${score.falseAlarms ? 'c-medium' : 'dim'}">${score.falseAlarms} false alarm${score.falseAlarms === 1 ? '' : 's'}</span></span></div>
+    <div class="table-wrap"><table class="score"><thead><tr><th>Result</th><th>Flaw</th><th>Test</th><th>Sandbox</th></tr></thead><tbody>
+      ${score.rows.map((r) => `<tr class="o-${esc(r.outcome)}"><td><b title="${esc(OUTCOME[r.outcome][1])}">${esc(OUTCOME[r.outcome][0])}</b></td><td>${tag(r.severity)} ${esc(r.title)}</td><td class="dim">${esc(r.test)}</td><td>${r.planted ? 'planted' : '<span class="dim">patched</span>'}</td></tr>`).join('')}
+    </tbody></table></div>
+    ${score.unexplained.length ? `<div class="pane-body"><p class="small">Also reported, outside the catalog: ${score.unexplained.map((f) => `${esc(f.title)} <span class="dim">${esc(f.endpoint || '')}</span>`).join('; ')}</p></div>` : ''}
+  </section>`;
+}
+
+function retestPane(run, vulns) {
+  return `<section class="pane"><div class="pane-title"><h2>Change the sandbox and retest</h2><span class="dim">scan ${run.phases.length + 1} of at most ${run.maxPhases}</span></div>
+    <div class="pane-body"><p class="small">Untick a flaw to patch it, or tick one to plant it. The same sandbox is re-planted (its tokens change), scanned again and compared with the last scan.</p>
+      <form id="pg-retest"><div class="filters" role="group" aria-label="Presets">${labCatalog.presets.map((p) => `<button type="button" class="chip" data-preset="${esc(p.id)}" aria-pressed="false" title="${esc(p.summary)}">${esc(p.title)}</button>`).join('')}</div>
+        <div class="grid3 pg-grid">${vulnGrid(labCatalog, vulns)}</div>
+        <div class="actions"><button class="btn primary" type="submit">Retest</button><span class="dim small" id="pg-count"></span></div>
+      </form></div></section>`;
 }
 
 app.addEventListener('click', async (e) => {
@@ -573,6 +664,11 @@ async function renderLabRun(id) {
     return;
   }
   if (labState.run !== id) Object.assign(labState, { run: id, phase: null, selected: null });
+  const isPlayground = run.kind === 'playground';
+  if (isPlayground && !labCatalog) {
+    const pg = (await api('GET', '/api/lab').catch(() => ({}))).playground;
+    labCatalog = pg?.available ? pg : null;
+  }
   const started = run.phases.filter((p) => p.scan);
   const isActive = run.status === 'running';
   // Follow the newest phase until someone picks one.
@@ -597,7 +693,7 @@ async function renderLabRun(id) {
     <section class="pane scanbar">
       <div class="ident">
         <h1>${esc(run.title)} ${s ? status(s.status) : status('queued')}</h1>
-        <div class="sub">demo lab · practice API on this server · ${run.phases.length > 1 ? `phase ${index + 1} of ${run.phases.length}` : 'one scan'}</div>
+        <div class="sub">demo lab · ${isPlayground ? 'simulation sandbox' : 'practice API on this server'} · ${run.phases.length > 1 ? `phase ${index + 1} of ${run.phases.length}` : 'one scan'}</div>
       </div>
       <div class="meter">
         <div class="checks"><span class="mono-num">${s ? `${s.requestsSent} requests sent` : 'starting…'}</span>${phase.seen ? `<span class="mono-num">target counted ${phase.seen.requests} requests · ${phase.seen.writes} writes · ${phase.seen.deletes} DELETE</span>` : ''}</div>
@@ -606,12 +702,14 @@ async function renderLabRun(id) {
       <div class="actions">
         ${isActive ? '<button class="btn danger" id="lab-stop" type="button">Stop</button>' : ''}
         ${s && !ACTIVE.includes(s.status) && s.status !== 'blocked' ? `<a class="btn" href="/reports/lab/${esc(id)}/${index}" target="_blank" rel="noopener">Report</a>` : ''}
-        ${isActive ? '' : `<button class="btn primary" type="button" data-run="${esc(run.exampleId)}">Run again</button>`}
-        <a class="btn ghost" href="#/lab">All examples</a>
+        ${isActive || isPlayground ? '' : `<button class="btn primary" type="button" data-run="${esc(run.exampleId)}">Run again</button>`}
+        <a class="btn ghost" href="#/lab">${isPlayground ? 'New scenario' : 'All examples'}</a>
       </div>
     </section>
     ${run.phases.length > 1 ? `<div class="filters lab-phases" role="group" aria-label="Phases">${run.phases.map((p, i) => `<button type="button" class="chip" data-phase="${i}" aria-pressed="${i === index}" ${p.scan ? '' : 'disabled'}>${i + 1}. ${esc(p.label)}</button>`).join('')}</div>` : ''}
     ${run.error ? note('bad', esc(run.error)) : ''}
+    ${isPlayground ? `<p class="small dim lab-sandbox">sandbox <code>${esc(run.sandbox.baseUrl)}</code> · deleted by ${esc(new Date(run.sandbox.expiresAt).toLocaleTimeString())} · fictional data only</p>` : ''}
+    ${phase.score ? scorePane(phase.score) : ''}
     ${s?.stopReason ? `<p class="note warn"><b>Ended early.</b> ${esc(s.stopReason)}</p>` : ''}
     ${s?.problems ? `<div class="note ok"><b>Blocked before any request was sent.</b><ul>${s.problems.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
     ${cmp ? `<section class="pane"><div class="pane-title"><h2>Retest</h2><span class="dim">compared with phase ${index}</span>
@@ -627,7 +725,8 @@ async function renderLabRun(id) {
     </div>
     <section class="pane"><div class="pane-title"><h2>Request log</h2><span class="dim">every request this scan sent · last ${s.log.length}</span></div>
       <div class="dmesg" id="scanlog">${s.log.map((l) => dmesgLine(l, new Date(s.startedAt || run.createdAt))).join('') || '<div class="msg">Nothing was sent.</div>'}</div>
-    </section>` : ''}`;
+    </section>` : ''}
+    ${isPlayground && labCatalog && !isActive && run.phases.length < run.maxPhases ? retestPane(run, run.phases[run.phases.length - 1].vulns) : ''}`;
 
   fitFindingList();
   const list = document.querySelector('.flist ol');
@@ -648,6 +747,16 @@ async function renderLabRun(id) {
     act(() => renderLabRun(id));
   });
   document.getElementById('lab-stop')?.addEventListener('click', (e) => act(() => api('POST', `/api/lab/runs/${encodeURIComponent(id)}/stop`), 'Stopping', e.currentTarget));
+  const retestForm = document.getElementById('pg-retest');
+  if (retestForm) {
+    wirePlayground(retestForm, labCatalog, async (input, btn) => {
+      const r = await act(() => api('POST', `/api/lab/runs/${encodeURIComponent(id)}/retest`, input), null, btn);
+      if (!r) return;
+      labState.phase = null;
+      labState.selected = null;
+      act(() => renderLabRun(id));
+    });
+  }
   clearInterval(pollTimer);
   if (isActive) pollTimer = setInterval(() => act(() => renderLabRun(id)), 1000);
 }

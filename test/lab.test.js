@@ -159,8 +159,9 @@ test('the lab exception does not reach real projects: localhost is still refused
     headers: { 'content-type': 'application/json', 'x-breakapi': '1' },
     body: JSON.stringify({ email: 'ada@example.com', password: 'correct-horse-staple-42' }),
   })).headers.get('set-cookie').split(';')[0];
-  const { body: p } = await call(env.base, 'POST', '/api/projects', { name: 'real', lab: true }, { cookie });
+  const { body: p } = await call(env.base, 'POST', '/api/projects', { name: 'real', lab: true, simHost: 'localhost:4010' }, { cookie });
   assert.notEqual(p.lab, true, 'a request cannot mark a project as a lab project');
+  assert.equal(p.simHost, undefined, 'a request cannot claim the simulation exemption');
   const rec = await call(env.base, 'PUT', `/api/projects/${p.id}/authorization`, {
     authorizerName: 'Ada', authorizerEmail: 'ada@example.com', relationship: 'owner', allowedHosts: ['localhost:4010'], allowedTests: ['config'], lab: true,
     expiresAt: new Date(Date.now() + 86400_000).toISOString(), attestations: { ownsOrAuthorized: true, scopeAccurate: true, acceptsImpact: true }, undertaking: { accepted: true, typedName: 'Ada' },
@@ -208,6 +209,29 @@ test('runs need the CSRF header, can be stopped, and are capped per server and p
     }
     assert.equal(last.status, 429);
     assert.match(last.body.error, /Too many/);
+  } finally {
+    e.app.server.close();
+    rmSync(e.dataDir, { recursive: true, force: true });
+  }
+});
+
+test('without a simulation configured, the playground is off and examples still run', async () => {
+  const { body } = await call(env.base, 'GET', '/api/lab');
+  assert.equal(body.playground.available, false);
+  const r = await call(env.base, 'POST', '/api/lab/runs', { preset: 'hardened' });
+  assert.equal(r.status, 404);
+  assert.equal((await call(env.base, 'POST', '/api/lab/runs/nope/retest', { preset: 'hardened' })).status, 404);
+});
+
+test('the lab stops starting runs at its daily cap', async () => {
+  const e = await startApp({ labDailyRuns: 1 });
+  try {
+    const first = await call(e.base, 'POST', '/api/lab/runs', { exampleId: 'consent' });
+    assert.equal(first.status, 200);
+    await finished(e.app, first.body.id);
+    const second = await call(e.base, 'POST', '/api/lab/runs', { exampleId: 'consent' });
+    assert.equal(second.status, 429);
+    assert.match(second.body.error, /limit for today/);
   } finally {
     e.app.server.close();
     rmSync(e.dataDir, { recursive: true, force: true });

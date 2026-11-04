@@ -10,10 +10,21 @@ jobs:
         node: [22, 24]
     steps:
       - uses: actions/checkout@v4
+      # The simulation backend lives in its own repo. Its contract with breakAPI is tested here.
+      # SIM_REPOSITORY (repo variable) overrides the default owner/breakapi-sim; a private sim repo
+      # needs a SIM_REPO_TOKEN secret with read access to it.
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.SIM_REPOSITORY || format('{0}/breakapi-sim', github.repository_owner) }}
+          token: ${{ secrets.SIM_REPO_TOKEN || github.token }}
+          path: .sim
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
       - run: npm test
+        env:
+          BREAKAPI_SIM_DIR: .sim
+          BREAKAPI_REQUIRE_SIM: '1'
   docker:
     runs-on: ubuntu-latest
     needs: test

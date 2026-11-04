@@ -12,6 +12,7 @@ import { challengeHost } from './verify.js';
 import { createScan, runScan, running, audit } from './scanner.js';
 import { renderReport, LIMITATIONS } from './report.js';
 import { createLab } from './lab.js';
+import { createSimClient } from './simclient.js';
 import { newId, nowIso, mask, clamp } from './util.js';
 import { setConfig, publicConfig } from './config.js';
 import { createMailer } from './mail.js';
@@ -146,7 +147,8 @@ export function createApp({ config, log = console } = {}) {
   const key = config.secretKey ? Buffer.from(config.secretKey, 'base64') : loadKey(config.dataDir);
   const mailer = createMailer(config, { log });
   const limiter = new RateLimiter();
-  const lab = createLab({ key, log });
+  const sim = config.simUrl && config.simControlKey ? createSimClient({ url: config.simUrl, key: config.simControlKey }) : null;
+  const lab = createLab({ key, log, sim, simUrl: config.simUrl, dailyRuns: config.labDailyRuns });
   const appRun = randomToken(9);
   let server;
 
@@ -664,18 +666,29 @@ export function createApp({ config, log = console } = {}) {
     }, { admin: true }],
     ['GET', /^\/api\/admin\/audit$/, async () => data.systemAudit.slice(-500).reverse().map((e) => ({ ...e, email: e.userId ? data.users[e.userId]?.email : undefined })), { admin: true }],
 
-    // --- demo lab: public, fixed examples against a built-in API. Only an example id is ever read from a request. ---
+    // --- demo lab: public. Only an example id, or a preset / catalog ids for the playground, is ever read
+    // from a request: never a host, URL, header or credential. ---
     ['GET', /^\/api\/lab$/, async () => {
       labEnabled();
-      return { examples: lab.examples() };
+      return { examples: lab.examples(), playground: await lab.playground() };
     }, { public: true }],
     ['POST', /^\/api\/lab\/runs$/, async ({ req, body }) => {
       labEnabled();
       rate(req, 'lab', 20, 15 * 60_000);
-      const r = lab.start(String(body.exampleId || ''));
+      const wantsPlayground = body.preset !== undefined || body.vulns !== undefined;
+      const r = wantsPlayground
+        ? await lab.startPlayground({ preset: typeof body.preset === 'string' ? body.preset : undefined, vulns: body.vulns })
+        : lab.start(String(body.exampleId || ''));
       if (r.error) throw new HttpError(r.error, r.message);
       return r;
-    }, { public: true, limit: 1024 }],
+    }, { public: true, limit: 4096 }],
+    ['POST', /^\/api\/lab\/runs\/([\w-]+)\/retest$/, async ({ req, m, body }) => {
+      labEnabled();
+      rate(req, 'lab', 20, 15 * 60_000);
+      const r = await lab.retest(m[1], { preset: typeof body.preset === 'string' ? body.preset : undefined, vulns: body.vulns });
+      if (r.error) throw new HttpError(r.error, r.message);
+      return r;
+    }, { public: true, limit: 4096 }],
     ['GET', /^\/api\/lab\/runs\/([\w-]+)$/, async ({ m }) => {
       labEnabled();
       const r = lab.view(m[1]);

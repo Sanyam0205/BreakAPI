@@ -13,6 +13,10 @@ const int = (v, fallback) => (Number.isFinite(Number(v)) && v !== '' && v !== un
  */
 export function loadConfig(env = process.env, overrides = {}) {
   const production = (env.BREAKAPI_ENV || env.NODE_ENV) === 'production';
+  // Reachable by other people: production, any https public URL, or a Replit instance (which may run in
+  // development mode because production needs SMTP). Hosted servers refuse local and private targets by
+  // default, so forgetting a setting can never turn the scanner against its own network.
+  const hosted = production || /^https:\/\//i.test(env.BREAKAPI_PUBLIC_URL || '') || !!(env.REPL_ID || env.REPLIT_DEPLOYMENT);
   const c = {
     env: production ? 'production' : 'development',
     production,
@@ -23,10 +27,16 @@ export function loadConfig(env = process.env, overrides = {}) {
     secretKey: env.BREAKAPI_SECRET_KEY || '',
     trustProxy: bool(env.BREAKAPI_TRUST_PROXY, false),
     // Targets on this machine or its private network. Fine on a laptop, an SSRF risk on a shared server.
-    allowLocalTargets: bool(env.BREAKAPI_ALLOW_LOCAL_TARGETS, !production),
-    allowPrivateTargets: bool(env.BREAKAPI_ALLOW_PRIVATE_TARGETS, !production),
+    hosted,
+    allowLocalTargets: bool(env.BREAKAPI_ALLOW_LOCAL_TARGETS, !hosted),
+    allowPrivateTargets: bool(env.BREAKAPI_ALLOW_PRIVATE_TARGETS, !hosted),
     // The public demo lab: fixed examples against a built-in API. It never takes a target from a visitor.
     lab: bool(env.BREAKAPI_LAB, true),
+    // Most lab runs (examples, playground runs and retests together) the server starts per UTC day.
+    labDailyRuns: int(env.BREAKAPI_LAB_DAILY_RUNS, 300),
+    // The simulation backend (separate repo, breakapi-sim). Both set = the lab playground is on.
+    simUrl: (env.BREAKAPI_SIM_URL || '').replace(/\/$/, ''),
+    simControlKey: env.BREAKAPI_SIM_CONTROL_KEY || '',
     sessionHours: int(env.BREAKAPI_SESSION_HOURS, 12),
     maxConcurrentScans: int(env.BREAKAPI_MAX_CONCURRENT_SCANS, 4),
     mail: {
@@ -45,10 +55,31 @@ export function loadConfig(env = process.env, overrides = {}) {
   return c;
 }
 
-/** Problems that must stop a production server from starting. */
-export function configProblems(c) {
-  if (!c.production) return [];
+/** Problems with the simulation settings. They stop any server from starting, hosted or not. */
+function simProblems(c) {
   const problems = [];
+  if (!!c.simUrl !== !!c.simControlKey) problems.push('Set both BREAKAPI_SIM_URL and BREAKAPI_SIM_CONTROL_KEY, or neither.');
+  if (c.simUrl) {
+    let u;
+    try {
+      u = new URL(c.simUrl);
+    } catch {
+      problems.push('BREAKAPI_SIM_URL is not a valid URL.');
+    }
+    // The control key travels in a header: never over plain HTTP to another machine.
+    if (u && u.protocol !== 'https:' && !(c.allowLocalTargets && ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname))) {
+      problems.push('BREAKAPI_SIM_URL must use https:// (plain http is only allowed for a local sim during development).');
+    }
+    if (u && u.pathname !== '/' && u.pathname !== '') problems.push('BREAKAPI_SIM_URL must be the bare origin, without a path.');
+  }
+  if (c.simControlKey && c.simControlKey.length < 24) problems.push('BREAKAPI_SIM_CONTROL_KEY must be at least 24 characters (generate one with: openssl rand -base64 32).');
+  return problems;
+}
+
+/** Problems that must stop a server from starting. */
+export function configProblems(c) {
+  const problems = simProblems(c);
+  if (!c.production) return problems;
   if (!/^https:\/\//.test(c.publicUrl)) problems.push('BREAKAPI_PUBLIC_URL must be the https:// address users reach the app on.');
   if (!/^[A-Za-z0-9+/]{43}=$/.test(c.secretKey)) problems.push('BREAKAPI_SECRET_KEY must be a base64-encoded 32-byte key (generate one with: openssl rand -base64 32).');
   if (c.mail.mode !== 'smtp') problems.push('SMTP_HOST (and SMTP_USER / SMTP_PASS) must be set so verification and reset emails can be delivered.');
@@ -61,6 +92,8 @@ export function publicConfig(c) {
     env: c.env,
     publicUrl: c.publicUrl || null,
     lab: c.lab,
+    simulation: c.simUrl ? new URL(c.simUrl).host : 'off',
+    labDailyRuns: c.labDailyRuns,
     allowLocalTargets: c.allowLocalTargets,
     allowPrivateTargets: c.allowPrivateTargets,
     trustProxy: c.trustProxy,

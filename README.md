@@ -45,7 +45,7 @@ To set up a project by hand against the practice API:
 
 Or run `node testdata/seed.mjs --scan` with both servers up to get a configured project and a running scan in one step.
 
-**[TESTING.md](TESTING.md)** walks through every feature end to end, with test data in [`testdata/`](testdata/) and the expected result for each step. The demo has switches for that (`DEMO_FIXED=1`, `DEMO_RATE_LIMIT=5`, `DEMO_VERIFY_TOKEN`, `DEMO_HOST=0.0.0.0`).
+Test data lives in [`testdata/`](testdata/). The demo has switches for trying features by hand (`DEMO_FIXED=1`, `DEMO_RATE_LIMIT=5`, `DEMO_VERIFY_TOKEN`, `DEMO_HOST=0.0.0.0`).
 
 Keyboard: <kbd>0</kbd>–<kbd>4</kbd> switch project sections, <kbd>j</kbd>/<kbd>k</kbd> move through findings, <kbd>s</kbd> start, <kbd>p</kbd> pause, <kbd>x</kbd> stop, <kbd>r</kbd> retest, <kbd>o</kbd> report, <kbd>?</kbd> all keys.
 
@@ -123,7 +123,7 @@ src/checks/*.js     one module per check category
 src/importers.js    OpenAPI / Postman / manual import
 src/report.js       printable HTML report
 public/             single-page UI (no build step), self-hosted JetBrains Mono
-testdata/           specs, collections, token + seed scripts for TESTING.md
+testdata/           specs, collections, token + seed scripts
 demo/               deliberately vulnerable practice API and its spec; the lab binds it to loopback only
 test/               end-to-end, account, access and demo lab tests
 ```

@@ -304,6 +304,33 @@ test('an unverified account cannot test until its email is verified; sign-up and
   }
 });
 
+test('hosted config: Replit or an https public URL refuses local and private targets even in development', () => {
+  for (const env of [{ REPL_ID: 'abc' }, { REPLIT_DEPLOYMENT: '1' }, { BREAKAPI_PUBLIC_URL: 'https://break.example.com' }]) {
+    const c = loadConfig({ BREAKAPI_ENV: 'development', ...env });
+    assert.equal(c.hosted, true, JSON.stringify(env));
+    assert.equal(c.allowLocalTargets, false, JSON.stringify(env));
+    assert.equal(c.allowPrivateTargets, false, JSON.stringify(env));
+    assert.deepEqual(configProblems(c), [], 'development still starts without SMTP');
+  }
+  const laptop = loadConfig({});
+  assert.equal(laptop.hosted, false);
+  assert.equal(laptop.allowLocalTargets, true);
+  assert.equal(loadConfig({ REPL_ID: 'abc', BREAKAPI_ALLOW_LOCAL_TARGETS: 'true' }).allowLocalTargets, true, 'an explicit setting still wins');
+});
+
+test('simulation config: both settings or neither, https only when hosted, a long key', () => {
+  const key = 'k'.repeat(32);
+  assert.deepEqual(configProblems(loadConfig({})), []);
+  assert.match(configProblems(loadConfig({ BREAKAPI_SIM_URL: 'https://sim.example.com' })).join(' '), /both/);
+  assert.match(configProblems(loadConfig({ BREAKAPI_SIM_CONTROL_KEY: key })).join(' '), /both/);
+  assert.deepEqual(configProblems(loadConfig({ BREAKAPI_SIM_URL: 'https://sim.example.com/', BREAKAPI_SIM_CONTROL_KEY: key })), []);
+  assert.deepEqual(configProblems(loadConfig({ BREAKAPI_SIM_URL: 'http://localhost:4020', BREAKAPI_SIM_CONTROL_KEY: key })), [], 'a local sim on a laptop');
+  assert.match(configProblems(loadConfig({ REPL_ID: 'x', BREAKAPI_SIM_URL: 'http://localhost:4020', BREAKAPI_SIM_CONTROL_KEY: key })).join(' '), /https/);
+  assert.match(configProblems(loadConfig({ BREAKAPI_SIM_URL: 'http://sim.example.com', BREAKAPI_SIM_CONTROL_KEY: key })).join(' '), /https/);
+  assert.match(configProblems(loadConfig({ BREAKAPI_SIM_URL: 'https://sim.example.com/api', BREAKAPI_SIM_CONTROL_KEY: key })).join(' '), /origin/);
+  assert.match(configProblems(loadConfig({ BREAKAPI_SIM_URL: 'https://sim.example.com', BREAKAPI_SIM_CONTROL_KEY: 'short' })).join(' '), /24 characters/);
+});
+
 test('production config: refuses unsafe settings and local or private targets', async () => {
   const prod = loadConfig({ BREAKAPI_ENV: 'production' });
   assert.equal(prod.allowLocalTargets, false);
