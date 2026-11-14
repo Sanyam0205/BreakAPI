@@ -27,7 +27,7 @@ const STATIC = {
   '/styles.css': ['styles.css', 'text/css; charset=utf-8'],
   '/report.css': ['report.css', 'text/css; charset=utf-8'],
   '/favicon.svg': ['favicon.svg', 'image/svg+xml'],
-  '/EXAMPLES.md': ['../EXAMPLES.md', 'text/plain; charset=utf-8'],
+  '/EXAMPLES.md': ['../docs/EXAMPLES.md', 'text/plain; charset=utf-8'],
   '/fonts/jetbrains-mono.woff2': ['fonts/jetbrains-mono.woff2', 'font/woff2'],
   '/fonts/jetbrains-mono-italic.woff2': ['fonts/jetbrains-mono-italic.woff2', 'font/woff2'],
 };

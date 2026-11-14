@@ -10,7 +10,7 @@ The demo lab lets anyone see breakAPI working, with no account and no setup. Eac
 
 There is nothing to set up. Every example does this for you:
 
-1. Starts its own copy of the practice API ([demo/vulnerable-api.js](demo/vulnerable-api.js)) on a private port of the server. Nothing outside the server can reach it.
+1. Starts its own copy of the practice API ([demo/vulnerable-api.js](../demo/vulnerable-api.js)) on a private port of the server. Nothing outside the server can reach it.
 2. Creates a temporary project with an authorization, the API's endpoint list and any test accounts it needs.
 3. Runs the scan, shows the results, and closes the practice API.
 

@@ -50,7 +50,7 @@ test('every example is described, and the public view hides its configuration', 
     for (const field of ['id', 'title', 'summary', 'what', 'how', 'expect']) assert.ok(x[field], `${x.id}.${field}`);
     assert.equal(x.controls, undefined);
   }
-  const doc = readFileSync(new URL('../EXAMPLES.md', import.meta.url), 'utf8');
+  const doc = readFileSync(new URL('../docs/EXAMPLES.md', import.meta.url), 'utf8');
   for (const x of EXAMPLES) assert.ok(doc.includes(`\`${x.id}\``), `EXAMPLES.md documents ${x.id}`);
 });
 

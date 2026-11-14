@@ -1,4 +1,4 @@
-# Frontend on Netlify, backend elsewhere. See DEPLOY-NETLIFY.md.
+# Frontend on Netlify, backend elsewhere. See docs/DEPLOY-NETLIFY.md.
 # Set BACKEND_URL (the https:// origin of the backend, no path) under
 # Site configuration → Environment variables before the first deploy.
 [build]

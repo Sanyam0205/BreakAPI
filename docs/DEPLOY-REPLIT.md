@@ -14,7 +14,7 @@ visitor ──▶ breakAPI (Repl 1) ──control API, shared key──▶ break
 
 The lab works without the sim: the built-in examples run against a practice API inside breakAPI. The sim adds the **Simulation playground**, where visitors choose which flaws to plant, then scan, score and retest.
 
-For a host where your data is safe across restarts, see the README's [Running on your own server](README.md#running-on-your-own-server).
+For a host where your data is safe across restarts, see the README's [Running on your own server](../README.md#running-on-your-own-server).
 
 **Only one Replit app available (free plan)?** Run the sim inside the breakAPI Repl and put the front end on Netlify: see [DEPLOY-NETLIFY.md](DEPLOY-NETLIFY.md).
 

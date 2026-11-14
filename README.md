@@ -31,7 +31,7 @@ breakAPI checks APIs you own, or are authorized to test, for common security wea
 | **Who** | Anyone, no account | Accounts issued by an administrator (there is no public sign-up) |
 | **Target** | A practice API or a simulation sandbox, chosen by the server | APIs you own or are authorized to test, after proving control |
 | **How long** | Runs are kept for an hour | Access lasts 30 days at most, ending sooner if the app restarts |
-| **Guide** | [EXAMPLES.md](EXAMPLES.md) | [EXAMPLES.md](EXAMPLES.md#testing-a-real-api) |
+| **Guide** | [EXAMPLES.md](docs/EXAMPLES.md) | [EXAMPLES.md](docs/EXAMPLES.md#testing-a-real-api) |
 
 ## Quick start
 
@@ -63,7 +63,7 @@ Keyboard: <kbd>0</kbd>–<kbd>4</kbd> switch project sections, <kbd>j</kbd>/<kbd
 
 The lab never takes a target from a visitor: a request can only name an example or catalog ids, and the server builds everything else.
 
-- **Examples.** Fixed scenarios against a deliberately vulnerable practice API that breakAPI starts on a loopback port for each run: one per kind of test, plus "safety" examples that show breakAPI's own limits (the consent wall, the request budget, write protection). See [EXAMPLES.md](EXAMPLES.md).
+- **Examples.** Fixed scenarios against a deliberately vulnerable practice API that breakAPI starts on a loopback port for each run: one per kind of test, plus "safety" examples that show breakAPI's own limits (the consent wall, the request budget, write protection). See [EXAMPLES.md](docs/EXAMPLES.md).
 - **Simulation playground** (optional). A second project, **breakapi-sim**, runs "Northwind Docs", a small multi-tenant SaaS API (organizations, people in different roles, documents, comments, search, an admin area). Each run gets its own sandbox with the vulnerabilities you choose, planted or patched:
 
   | Planted flaw | Found by |
@@ -82,8 +82,8 @@ The playground is on when breakAPI can reach a sim. Either run the sim as its ow
 
 | You want | Use |
 | --- | --- |
-| A free public demo, with the pages on Netlify and everything else in **one** Replit project | [DEPLOY-NETLIFY.md](DEPLOY-NETLIFY.md). It also covers Replit alone, without Netlify |
-| breakAPI and the simulation as **two** Replit apps | [DEPLOY-REPLIT.md](DEPLOY-REPLIT.md) |
+| A free public demo, with the pages on Netlify and everything else in **one** Replit project | [DEPLOY-NETLIFY.md](docs/DEPLOY-NETLIFY.md). It also covers Replit alone, without Netlify |
+| breakAPI and the simulation as **two** Replit apps | [DEPLOY-REPLIT.md](docs/DEPLOY-REPLIT.md) |
 | A server you control, with persistent data and your own domain | [Running on your own server](#running-on-your-own-server), below |
 | Just to try it | `npm start` on your own machine |
 
@@ -263,6 +263,7 @@ src/report.js       printable HTML report
 public/             single-page UI (no build step), self-hosted JetBrains Mono
 demo/               deliberately vulnerable practice API and its spec; the lab binds it to loopback only
 deploy/             Netlify build script
+docs/               guides (examples, deployment) and working notes (STATUS, history, decisions)
 testdata/           specs, collections, token + seed scripts
 test/               end-to-end, account, access, lab and simulation-contract tests
 ```
