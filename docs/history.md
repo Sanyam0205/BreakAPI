@@ -2,10 +2,11 @@
 
 Completed work, newest first. Seeded from `git log` (dates are commit dates).
 
-## Repo cleanup (2026-11-15, uncommitted)
+## Repo cleanup and docs workflow (2026-11-15)
 - Added CLAUDE.md, `docs/STATUS.md`, `history.md`, `decisions.md`.
 - Moved `EXAMPLES.md`, `DEPLOY-NETLIFY.md`, `DEPLOY-REPLIT.md` into `docs/`; `/EXAMPLES.md` URL unchanged.
-- Commit hash: not committed yet.
+- Added CLAUDE.md "Done means" checklist and a project Stop hook (`.claude/hooks/docs-check.sh`) that blocks once if code changed without a `docs/STATUS.md` update.
+- Docs commit: `f19e373` (Docs maintenance); hook and checklist not committed yet.
 
 ## Hosted deployment: Replit backend, Netlify front end (2026-11-05)
 - `c1f40bc` Deployment to Replit and Netlify changes

@@ -84,6 +84,23 @@ Run from the repository root (Node 22+):
 
 Lint, format and type-check commands: none configured yet. If one is added, record it here.
 
+## Done means
+A task is not finished until the docs for what it touched are updated in the same change. Always update `docs/STATUS.md`; then add whatever applies:
+
+| Change | Also update |
+| --- | --- |
+| New or changed environment variable or config default | `.env.example` and the README configuration table |
+| New or changed check | README checks table, `docs/EXAMPLES.md` if an example covers it |
+| Change to auth, sessions, netguard, the guarded client, the lab or the sim | `SECURITY.md` |
+| Change under `public/` (UI, tokens, components) | `DESIGN.md` |
+| Lab examples or the real-API guide | `docs/EXAMPLES.md` (and its test in `test/lab.test.js`) |
+| Deployment, hosting or Netlify/Replit behavior | `docs/DEPLOY-NETLIFY.md`, `docs/DEPLOY-REPLIT.md`, `netlify.toml` |
+| New, moved or removed file or folder | README Layout section, plus every link to it |
+| A decision that settles an open question | `docs/decisions.md`, and remove it from STATUS open questions |
+| A finished phase | move its entry from STATUS to `docs/history.md` (hash after the commit exists) |
+
+Also run `npm test` and record the result in STATUS "Known state". A Stop hook (`.claude/hooks/docs-check.sh`) blocks once when code or config changed but `docs/STATUS.md` did not; it cannot check the other rows, so use this table.
+
 ## Scope Control
 Build thin vertical slices and widen. Do not jump ahead to hosted-SaaS features (billing, public sign-up, multi-replica storage) while the core scanner, consent flow and report quality are incomplete. The JSON single-file store is a known limit; moving to a database is an architecture decision, not a drive-by change.
 
