@@ -28,5 +28,6 @@ dist/
 /sim/
 
 # local workflow docs
-/docs/
+/docs/*
+!/docs/EXAMPLES.md
 /CLAUDE.md
