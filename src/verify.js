@@ -5,7 +5,7 @@ import { classifyAddress, safeFetch, hostRefusal } from './netguard.js';
 const WELL_KNOWN = '/.well-known/breakapi-verification.txt';
 
 export function blockedAddress(ip) {
-  return ['metadata', 'linklocal'].includes(classifyAddress(ip));
+  return ['metadata', 'linklocal', 'reserved'].includes(classifyAddress(ip));
 }
 
 /**

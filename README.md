@@ -263,7 +263,7 @@ src/report.js       printable HTML report
 public/             single-page UI (no build step), self-hosted JetBrains Mono
 demo/               deliberately vulnerable practice API and its spec; the lab binds it to loopback only
 deploy/             Netlify build script
-docs/               guides (examples, deployment) and working notes (STATUS, history, decisions)
+docs/               guides (examples, deployment) and working notes (STATUS, history, decisions, plans)
 testdata/           specs, collections, token + seed scripts
 test/               end-to-end, account, access, lab and simulation-contract tests
 ```

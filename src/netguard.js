@@ -8,16 +8,30 @@ const MAX_BODY = 256 * 1024;
 
 const v4 = (ip) => ip.split('.').map(Number);
 
-/** Classifies an IP literal: loopback, private, linklocal, metadata, unspecified or public. */
+// IPv6 forms that embed an IPv4 address (mapped, compatible, NAT64), in WHATWG's compressed hex form.
+const EMBEDDED_V4 = /^(?:::ffff:|::|64:ff9b::)([0-9a-f]{1,4}):([0-9a-f]{1,4})$/;
+
+/** Classifies an IP literal: loopback, private, linklocal, metadata, unspecified, reserved, public or invalid. */
 export function classifyAddress(ip0) {
   let ip = String(ip0).replace(/^\[|\]$/g, '').toLowerCase();
-  const mapped = ip.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-  if (mapped) ip = mapped[1];
+  if (isIP(ip) === 6) {
+    // Normalize to compressed hex (dotted tails become hex) so one regex covers every spelling.
+    try { ip = new URL(`http://[${ip}]`).hostname.slice(1, -1); } catch { return 'invalid'; }
+    const m = ip.match(EMBEDDED_V4);
+    if (m) {
+      const hi = parseInt(m[1], 16);
+      const lo = parseInt(m[2], 16);
+      ip = `${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`;
+    }
+  }
   if (isIP(ip) === 4) {
     const [a, b] = v4(ip);
     if (ip === '169.254.169.254' || ip === '100.100.100.200') return 'metadata';
     if (a === 127) return 'loopback';
     if (a === 0) return 'unspecified';
+    if (a >= 224) return 'reserved'; // multicast, 240/4 and broadcast
+    if (a === 198 && (b === 18 || b === 19)) return 'reserved'; // benchmarking
+    if (ip.startsWith('192.0.0.')) return 'reserved';
     if (a === 169 && b === 254) return 'linklocal';
     if (a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127)) return 'private';
     return 'public';
@@ -39,6 +53,7 @@ export function addressRefusal(ip, config = getConfig()) {
   if (kind === 'metadata' || kind === 'linklocal') return `${ip} is a link-local or cloud-metadata address, which breakAPI never contacts.`;
   if ((kind === 'loopback' || kind === 'unspecified') && !config.allowLocalTargets) return `${ip} is on this server itself; local targets are disabled here (BREAKAPI_ALLOW_LOCAL_TARGETS).`;
   if (kind === 'private' && !config.allowPrivateTargets) return `${ip} is a private-network address; private targets are disabled here (BREAKAPI_ALLOW_PRIVATE_TARGETS).`;
+  if (kind === 'reserved') return `${ip} is a reserved address range, which breakAPI never contacts.`;
   if (kind === 'invalid') return `${ip} is not a valid address.`;
   return null;
 }

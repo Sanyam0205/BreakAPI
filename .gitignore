@@ -26,3 +26,7 @@ dist/
 
 # A breakapi-sim checkout used by embedded mode (its own repo)
 /sim/
+
+# local workflow docs
+/docs/
+/CLAUDE.md
