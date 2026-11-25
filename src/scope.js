@@ -27,6 +27,8 @@ export const HARD_LIMITS = {
   burstRps: 100,
   maxWrites: 500,
   maxDurationMs: 2 * 3600_000,
+  timeoutMs: 60_000,
+  stopOnErrorStreak: 100,
 };
 
 export const VERIFY_TTL_MS = 24 * 3600_000;

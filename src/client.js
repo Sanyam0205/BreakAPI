@@ -1,6 +1,7 @@
 import { redactHeaders, nowIso, sleep } from './util.js';
 import { HARD_LIMITS, matchingHost, isLocalEntry, entryVerified, undertakingCurrent, authorizationConfirmed, targetConfig } from './scope.js';
 import { safeFetch, hostRefusal } from './netguard.js';
+import { VERSION } from './version.js';
 
 /** Thrown when the scan must stop: user stop, budget, window, expiry or a stop condition. */
 export class ScanHalt extends Error {
@@ -54,6 +55,8 @@ export class GuardedClient {
     this.maxDurationMs = cap(this.controls.maxDurationMs, HARD_LIMITS.maxDurationMs, 30 * 60_000);
     this.rps = Math.max(0.1, cap(this.controls.rps, HARD_LIMITS.rps, 5));
     this.burstRps = Math.max(0.1, cap(this.controls.burstRps, HARD_LIMITS.burstRps, 20));
+    this.timeoutMs = Math.max(1000, cap(this.controls.timeoutMs, HARD_LIMITS.timeoutMs, 10_000));
+    this.stopOnErrorStreak = Math.max(1, cap(this.controls.stopOnErrorStreak, HARD_LIMITS.stopOnErrorStreak, 10));
     this.startedAt = Date.now();
     this.nextAt = 0;
     this.failStreak = 0;
@@ -140,7 +143,7 @@ export class GuardedClient {
     this.nextAt = Date.now() + 1000 / rps;
 
     const h = {
-      'user-agent': `breakAPI/0.1 (authorized assessment; scan ${this.scan.id})`,
+      'user-agent': `breakAPI/${VERSION} (authorized assessment; scan ${this.scan.id})`,
       'x-breakapi-scan': this.scan.id,
       ...headers,
     };
@@ -157,7 +160,7 @@ export class GuardedClient {
     let res;
     try {
       // Guarded DNS: the resolved address is checked at connect time, so it cannot be rebound to a forbidden one.
-      res = await safeFetch(url, { method: m, headers: h, body: payload, timeoutMs: this.controls.timeoutMs, maxBody: MAX_BODY, config: network });
+      res = await safeFetch(url, { method: m, headers: h, body: payload, timeoutMs: this.timeoutMs, maxBody: MAX_BODY, config: network });
     } catch (err) {
       res = { status: 0, headers: {}, setCookies: [], body: '', error: err.code === 'TIMEOUT' ? 'timeout' : err.code === 'EBREAKAPI_BLOCKED' ? err.message : err.code || err.message };
     }
@@ -177,7 +180,7 @@ export class GuardedClient {
 
     if (res.status === 0 || res.status >= 500) {
       this.failStreak++;
-      if (this.failStreak >= this.controls.stopOnErrorStreak) {
+      if (this.failStreak >= this.stopOnErrorStreak) {
         this.halt(`Stop condition: ${this.failStreak} consecutive server errors or timeouts.`);
       }
     } else {

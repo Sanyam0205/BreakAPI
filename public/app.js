@@ -1469,8 +1469,8 @@ async function renderScan(id) {
         <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="${max}" aria-valuenow="${s.requestsSent}"><div class="fill" id="fill"></div></div>
         <div class="checks"><span class="mono-num">${s.requestsSent}/${max} requests${s.writesSent ? ` · ${s.writesSent} writes` : ''}</span>${s.checks.filter((c) => c.id !== 'passive').map((c) => {
           const n = s.findings.filter((f) => f.check === c.id).length;
-          const state = c.status === 'done' ? `${n} found` : c.status === 'running' ? 'running…' : c.status === 'not authorized' ? 'off' : c.status === 'incomplete' ? 'incomplete' : 'pending';
-          return `<span class="${c.status === 'done' ? 'done' : c.status === 'running' ? 'run' : c.status === 'not authorized' ? 'off' : ''}" title="${esc(c.id)}: ${esc(state)}">${esc(c.id)} ${esc(c.status === 'done' ? String(n) : c.status === 'running' ? '…' : c.status === 'incomplete' ? '—' : '')}</span>`;
+          const state = c.status === 'done' ? `${n} found` : c.status === 'running' ? 'running…' : c.status === 'not authorized' ? 'off' : c.status === 'incomplete' ? 'incomplete' : c.status === 'failed' ? 'failed' : 'pending';
+          return `<span class="${c.status === 'done' ? 'done' : c.status === 'running' ? 'run' : c.status === 'not authorized' ? 'off' : ''}" title="${esc(c.id)}: ${esc(state)}">${esc(c.id)} ${esc(c.status === 'done' ? String(n) : c.status === 'running' ? '…' : c.status === 'incomplete' || c.status === 'failed' ? '—' : '')}</span>`;
         }).join('')}</div>
       </div>
       <div class="tally" aria-label="Findings by severity">${SEVERITIES.map((x) => `<span class="${counts[x] ? `c-${x}` : 'zero'}"><b>${counts[x]}</b>${SEV_SHORT[x]}</span>`).join('')}</div>
@@ -1478,7 +1478,7 @@ async function renderScan(id) {
         ${s.status === 'running' ? '<button class="btn" id="pause" type="button">Pause <kbd>p</kbd></button>' : ''}
         ${s.status === 'paused' ? '<button class="btn primary" id="resume" type="button">Resume <kbd>p</kbd></button>' : ''}
         ${isActive ? '<button class="btn danger" id="stop" type="button">Stop <kbd>x</kbd></button>' : ''}
-        ${!isActive && s.status !== 'blocked' ? `<a class="btn" id="report" href="/reports/${esc(s.id)}" target="_blank" rel="noopener">Report <kbd>o</kbd></a><a class="btn ghost" href="/api/scans/${esc(s.id)}/report.json">JSON</a><button class="btn primary" id="rerun" type="button">Retest <kbd>r</kbd></button>` : ''}
+        ${!isActive && s.status !== 'blocked' ? `<a class="btn" id="report" href="/reports/${esc(s.id)}" target="_blank" rel="noopener">Report <kbd>o</kbd></a><a class="btn ghost" href="/api/scans/${esc(s.id)}/report.json">JSON</a><a class="btn ghost" href="/api/scans/${esc(s.id)}/report.sarif">SARIF</a><button class="btn primary" id="rerun" type="button">Retest <kbd>r</kbd></button>` : ''}
       </div>
     </section>
     ${!isActive && s.findings.length ? `<p class="next"><span class="dim">start with:</span> <a href="#" data-pick="${esc(s.findings[0].id)}">${tag(s.findings[0].severity)} ${esc(s.findings[0].title)}</a> <span class="dim">— fix the most severe finding first, then retest.</span></p>` : ''}

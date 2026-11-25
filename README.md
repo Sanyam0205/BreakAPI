@@ -147,7 +147,8 @@ To use the simulation playground, run the `breakapi-sim` app elsewhere and set `
 - **Logs:** one JSON line per request on stdout (method, path without query string, status, duration, user id, IP). Secrets, cookies and request bodies are never logged.
 - **Audit:** every project keeps its own audit log; the admin page shows the system audit log (sign-ins, failed sign-ins, role changes, disables, deletions).
 - **Shutdown:** `SIGTERM` stops running scans (recorded as stopped with a reason), flushes the data file and exits. Scans interrupted by a crash are marked *interrupted* on the next start.
-- **Backups:** back up the data volume (`db.json`). It holds hashed passwords, hashed tokens, encrypted test credentials and all findings, so treat backups as sensitive. Keep `BREAKAPI_SECRET_KEY` separately; without it the encrypted credentials in a backup are unreadable, by design.
+- **Corrupt data file:** if `db.json` cannot be read, breakAPI refuses to start (and the admin CLI refuses to run) with a message naming the file. It never overwrites or deletes it. breakAPI also keeps `db.json.bak` next to it, a byte copy of the last good file taken at start and at most every five minutes, with the same owner-only permissions and the same encrypted contents. To recover, check that the `.bak` is intact and copy it over `db.json` yourself; recent changes since the copy are lost.
+- **Backups:** back up the data volume (`db.json`, and the `db.json.bak` beside it is a second copy on the same disk, not an off-site backup). It holds hashed passwords, hashed tokens, encrypted test credentials and all findings, so treat backups as sensitive. Keep `BREAKAPI_SECRET_KEY` separately; without it the encrypted credentials in a backup are unreadable, by design.
 - **Upgrades:** stop, replace the image or code, start. Data migrations run at startup. Issued access ends with the restart, so issue it again afterwards.
 
 ### Limits to know about
@@ -165,7 +166,7 @@ Everything is an environment variable; `.env.example` lists them with comments.
 | --- | --- | --- |
 | `PORT`, `HOST` | `7300`, `127.0.0.1` (`0.0.0.0` in production) | Where breakAPI listens |
 | `BREAKAPI_ENV` | `development` | `production` enforces the required settings above |
-| `BREAKAPI_DATA` | `./data` | Data directory (`db.json`, setup token, generated key, outbox) |
+| `BREAKAPI_DATA` | `./data` | Data directory (`db.json` and `db.json.bak`, setup token, generated key, outbox) |
 | `BREAKAPI_PUBLIC_URL` | none | The address people use. Required in production |
 | `BREAKAPI_SECRET_KEY` | generated file | Encrypts stored test credentials |
 | `BREAKAPI_TRUST_PROXY` | `false` | Read client IP and HTTPS flag from `X-Forwarded-*`. Only behind a proxy the app can't be reached around |
@@ -212,7 +213,15 @@ All network traffic goes through one guarded client ([src/client.js](src/client.
 | Rate limiting | A bounded burst against an auth-like or authenticated endpoint, looking for HTTP 429 or rate-limit headers |
 | Passive | Stack traces or debug output; cookie flags; data-quality indicators in responses already fetched (malformed emails, implausible ages and dates, negative counts, `updatedAt` before `createdAt`): low-confidence, for human review |
 
-You can fix a finding and rerun the scan: the retest reports each previous finding as fixed, still open or new. Previous findings whose check did not complete in the retest are listed as *not re-verified*.
+You can fix a finding and rerun the scan: the retest reports each previous finding as fixed, still open or new. Previous findings whose check did not complete in the retest are listed as *not re-verified*. If one check throws an unexpected error it is marked *failed* (with the error in the scan log) and the remaining checks still run, so the scan still completes.
+
+## Outputs
+
+- **HTML report** (`/reports/<scan id>`): printable, includes the authorization record and the limitations.
+- **JSON** (`/api/scans/<id>/report.json`): the scan, findings with evidence, authorization snapshot, controls and limitations, for diffing or scripts.
+- **SARIF 2.1.0** (`/api/scans/<id>/report.sarif`): findings as results (severity mapped to `error`/`warning`/`note`, plus a `security-severity` score) for tools that read SARIF, including GitHub code scanning. Locations are logical (the endpoint), not source files, and evidence bodies are left out; the limitations travel in the run properties.
+
+All three need a signed-in project member (others get 404), and none contains stored credentials. An export with no findings is not proof the API is secure.
 
 ## Inputs
 
@@ -253,19 +262,22 @@ src/lab.js          the public demo lab: examples, playground runs, retests
 src/labscore.js     planted-vs-detected scoring for playground runs
 src/simclient.js    client for the simulation's control API
 src/simembed.js     runs a breakapi-sim checkout inside this process
+src/store.js       JSON file store: atomic writes, fail-closed load, `.bak` copy
 src/scope.js        preflight checks (consent, undertaking, expiry, scope, per-host verification, window)
 src/undertaking.js  the undertaking text, legal notice and authorization limitations (edit with counsel)
 src/verify.js       DNS / well-known challenge
+src/version.js      the app version (User-Agent, /healthz)
 src/synthetic.js    synthetic identities and values (reserved .invalid addresses)
 src/checks/*.js     one module per check category
 src/importers.js    OpenAPI / Postman / manual import
 src/report.js       printable HTML report
+src/sarif.js        SARIF 2.1.0 export
 public/             single-page UI (no build step), self-hosted JetBrains Mono
 demo/               deliberately vulnerable practice API and its spec; the lab binds it to loopback only
 deploy/             Netlify build script
 docs/               guides (examples, deployment) and working notes (STATUS, history, decisions, plans)
 testdata/           specs, collections, token + seed scripts
-test/               end-to-end, account, access, lab and simulation-contract tests
+test/               end-to-end (incl. safety controls), account, access, netguard, client, importer, store, lab and simulation-contract tests
 ```
 
 The simulation backend lives in its own repository, **breakapi-sim**. `npm test` includes contract tests that run breakAPI's scanner against it when it is checked out next to this repo (`../breakAPI-sim`, or the folder in `BREAKAPI_SIM_DIR`), and skip otherwise.

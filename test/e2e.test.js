@@ -1,4 +1,5 @@
 import { test, before, after } from 'node:test';
+import http from 'node:http';
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -8,6 +9,9 @@ import { loadConfig } from '../src/config.js';
 import { createDemoServer, demoTokens, stats } from '../demo/vulnerable-api.js';
 import { sleep } from '../src/util.js';
 import { blockedAddress } from '../src/verify.js';
+import { createScan, runScan } from '../src/scanner.js';
+import { GuardedClient, ScanHalt } from '../src/client.js';
+import { evidence } from '../src/checks/common.js';
 
 let app, demo, base, demoHost, dataDir;
 let TOKEN = ''; // session id of the signed-in admin, set in before()
@@ -77,7 +81,8 @@ before(async () => {
   TOKEN = r.headers.get('set-cookie').match(/bp_sid=([^;]+)/)[1];
 });
 
-after(() => {
+after(async () => {
+  await app.shutdown(); // flushes the store so no delayed save hits the removed folder
   app.server.close();
   demo.close();
   rmSync(dataDir, { recursive: true, force: true });
@@ -392,4 +397,193 @@ test('write budget and scan duration are enforced by the client', async () => {
   const timed = await waitForScan((await api('POST', `/api/projects/${id}/scans`, {})).body.id);
   assert.equal(timed.status, 'halted');
   assert.match(timed.stopReason, /Maximum scan duration/);
+});
+
+test('one throwing check is marked failed and the rest of the scan still runs', async () => {
+  const id = await setupProject('failing check');
+  const project = app.store.data.projects[id];
+  const scan = createScan(app.store, project);
+  let laterRan = false;
+  const checks = [
+    { id: 'config', run: async () => { throw new Error('boom'); } },
+    { id: 'exposure', run: async () => { laterRan = true; } },
+  ];
+  await runScan({ store: app.store, key: app.key, checks }, scan.id);
+  const byId = Object.fromEntries(scan.checks.map((c) => [c.id, c]));
+  assert.equal(scan.status, 'completed');
+  assert.equal(byId.config.status, 'failed');
+  assert.equal(byId.config.error, 'boom');
+  assert.equal(byId.exposure.status, 'done');
+  assert.ok(laterRan);
+});
+
+// ----- safety controls, exercised on the guarded client against throwaway local targets -----
+
+/** A local HTTP target that records the paths it receives. `handler(req, res)` answers; default is 200. */
+async function throwawayTarget(handler = (req, res) => res.end('ok')) {
+  const hits = [];
+  const server = http.createServer((req, res) => { hits.push(req.url); handler(req, res); });
+  const port = await listen(server);
+  server.unref(); // a failing test must not keep the runner alive
+  return { port, hits, close: () => server.close() };
+}
+
+/** A GuardedClient on a copy of a fully valid project, pointed at the throwaway target. */
+async function clientFor(target, { controls = {}, authorization: auth = {} } = {}) {
+  const id = await setupProject(`controls ${target.port}`);
+  const project = structuredClone(app.store.data.projects[id]);
+  project.authorization.allowedHosts = [`127.0.0.1:${target.port}`];
+  project.target.baseUrl = `http://127.0.0.1:${target.port}`;
+  Object.assign(project.controls, { rps: 50, burstRps: 100 }, controls);
+  Object.assign(project.authorization, auth);
+  const scan = { id: 'scan_controls', requestsSent: 0, log: [] };
+  const control = { paused: false, stopReason: null, userStopped: false };
+  return { client: new GuardedClient({ project, scan, control, onLog() {}, onResponse() {} }), scan, control, project };
+}
+
+test('pause holds requests until resume', async () => {
+  const t = await throwawayTarget();
+  const { client, scan, control } = await clientFor(t);
+  control.paused = true;
+  const pending = client.send({ path: '/a' });
+  await sleep(1000);
+  assert.equal(scan.requestsSent, 0);
+  assert.equal(t.hits.length, 0);
+  control.paused = false;
+  assert.equal((await pending).status, 200);
+  assert.equal(t.hits.length, 1);
+  t.close();
+});
+
+test('authorization expiring mid-scan halts the next request', async () => {
+  const t = await throwawayTarget();
+  const { client, project } = await clientFor(t);
+  assert.equal((await client.send({ path: '/a' })).status, 200);
+  project.authorization.expiresAt = new Date(Date.now() - 1000).toISOString();
+  await assert.rejects(client.send({ path: '/b' }), (e) => e instanceof ScanHalt && /expired/i.test(e.reason));
+  assert.deepEqual(t.hits, ['/a']);
+  t.close();
+});
+
+test('a closing test window halts the next request', async () => {
+  const t = await throwawayTarget();
+  const { client, project } = await clientFor(t);
+  assert.equal((await client.send({ path: '/a' })).status, 200);
+  project.controls.windowEnd = new Date(Date.now() - 1000).toISOString();
+  await assert.rejects(client.send({ path: '/b' }), (e) => e instanceof ScanHalt && /window/i.test(e.reason));
+  assert.deepEqual(t.hits, ['/a']);
+  t.close();
+});
+
+test('the error streak stops the scan after exactly the configured number of failures', async () => {
+  const t = await throwawayTarget((req, res) => { res.statusCode = 500; res.end('x'); });
+  const { client, scan } = await clientFor(t, { controls: { stopOnErrorStreak: 3 } });
+  await client.send({ path: '/1' });
+  await client.send({ path: '/2' });
+  await assert.rejects(client.send({ path: '/3' }), (e) => e instanceof ScanHalt && /3 consecutive/.test(e.reason));
+  assert.equal(scan.requestsSent, 3);
+  assert.equal(t.hits.length, 3);
+  t.close();
+});
+
+test('excluded paths are never requested', async () => {
+  const t = await throwawayTarget();
+  const { client } = await clientFor(t, { controls: { exclusions: ['/admin*'] } });
+  const skipped = await client.send({ path: '/admin/users' });
+  assert.match(skipped.skipped, /excluded/);
+  assert.equal((await client.send({ path: '/public' })).status, 200);
+  assert.deepEqual(t.hits, ['/public']);
+  t.close();
+});
+
+test('redirects are not followed', async () => {
+  const other = await throwawayTarget();
+  const t = await throwawayTarget((req, res) => { res.statusCode = 302; res.setHeader('location', `http://127.0.0.1:${other.port}/landed`); res.end(); });
+  const { client } = await clientFor(t);
+  const res = await client.send({ path: '/go' });
+  assert.equal(res.status, 302);
+  assert.deepEqual(other.hits, []);
+  t.close();
+  other.close();
+});
+
+test('on restart, unfinished scans become interrupted and expired authorizations lose their credentials', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'breakapi-restart-'));
+  const config = () => loadConfig({}, { dataDir: dir, quiet: true });
+  const first = createApp({ config: config(), log: { info() {}, error() {} } });
+  first.store.data.scans.s_old = { id: 's_old', projectId: 'p_old', status: 'running', findings: [], checks: [], log: [] };
+  first.store.data.projects.p_old = {
+    id: 'p_old', name: 'expired', members: [], audit: [],
+    authorization: { expiresAt: new Date(Date.now() - 1000).toISOString() },
+    accounts: [{ id: 'a1', label: 'alice', secretEnc: 'ciphertext' }],
+  };
+  await first.shutdown();
+  const second = createApp({ config: config(), log: { info() {}, error() {} } });
+  const { scans, projects } = second.store.data;
+  assert.equal(scans.s_old.status, 'interrupted');
+  assert.equal(projects.p_old.accounts[0].secretEnc, undefined);
+  assert.ok(projects.p_old.accounts[0].purgedAt);
+  assert.ok(projects.p_old.audit.some((a) => a.event === 'credentials.purged'));
+  await second.shutdown();
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('a target that echoes the test credential cannot leak it into stored findings or the report', async () => {
+  const token = demoTokens().alice;
+  const t = await throwawayTarget((req, res) => { res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({ you: req.headers.authorization, token })); });
+  const id = await setupProject('echo');
+  const project = app.store.data.projects[id];
+  project.authorization.allowedHosts = [`127.0.0.1:${t.port}`];
+  project.target.baseUrl = `http://127.0.0.1:${t.port}`;
+  const scan = createScan(app.store, project);
+  const echo = { id: 'config', run: async (ctx) => {
+    const res = await ctx.client.send({ path: '/me', account: ctx.accounts[0] });
+    ctx.report({ key: 'echo', severity: 'low', title: 'Echo', endpoint: 'GET /me', evidence: [evidence(res, 'echoes the token')] });
+  } };
+  await runScan({ store: app.store, key: app.key, checks: [echo] }, scan.id);
+  assert.equal(scan.findings.length, 1);
+  assert.match(scan.findings[0].evidence[0].body, /"you"/); // the response was captured, with the secret masked
+  assert.ok(!JSON.stringify(scan.findings).includes(token));
+  const html = await (await fetch(`${base}/reports/${scan.id}`, { headers: { cookie: `bp_sid=${TOKEN}` } })).text();
+  assert.ok(html.includes('Echo') && !html.includes(token));
+  t.close();
+});
+
+test('JSON and SARIF exports carry the findings and limits, hold no secrets, and are members-only', async () => {
+  const id = await setupProject('exports');
+  const { body: started } = await api('POST', `/api/projects/${id}/scans`, {});
+  const done = await waitForScan(started.id);
+  assert.ok(done.findings.length > 0);
+  const get = (path, cookie = `bp_sid=${TOKEN}`) => fetch(base + path, { headers: { cookie } });
+
+  const json = await get(`/api/scans/${started.id}/report.json`);
+  assert.equal(json.status, 200);
+  assert.match(json.headers.get('content-disposition'), /attachment/);
+  const j = await json.json();
+  assert.equal(j.scan.findings.length, done.findings.length);
+  assert.ok(j.authorization.allowedHosts.length);
+  assert.ok(j.limitations.some((l) => /cannot prove/i.test(l)));
+
+  const sarif = await get(`/api/scans/${started.id}/report.sarif`);
+  assert.equal(sarif.status, 200);
+  const z = await sarif.json();
+  assert.equal(z.version, '2.1.0');
+  assert.equal(z.runs[0].results.length, done.findings.length);
+  assert.ok(z.runs[0].tool.driver.rules.length > 0);
+  assert.ok(z.runs[0].results.every((r) => ['error', 'warning', 'note'].includes(r.level) && r.locations[0].logicalLocations[0].name));
+  assert.ok(z.runs[0].properties.limitations.some((l) => /cannot prove/i.test(l)));
+
+  const t = demoTokens();
+  for (const text of [JSON.stringify(j), JSON.stringify(z)]) {
+    assert.ok(!text.includes('secretEnc') && !text.includes(t.alice) && !text.includes(t.bob));
+  }
+
+  // a signed-in user who is not a member of the project gets 404 for both
+  const issued = await api('POST', '/api/admin/users', { email: 'outsider@example.com', name: 'Out', password: 'another-long-passphrase-1' });
+  const c = issued.body.credentials;
+  const login = await fetch(`${base}/api/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-breakapi': '1' }, body: JSON.stringify({ email: c.email, password: c.password, setupToken: c.setupToken }) });
+  assert.equal(login.status, 200);
+  const outsider = `bp_sid=${login.headers.get('set-cookie').match(/bp_sid=([^;]+)/)[1]}`;
+  assert.equal((await get(`/api/scans/${started.id}/report.json`, outsider)).status, 404);
+  assert.equal((await get(`/api/scans/${started.id}/report.sarif`, outsider)).status, 404);
 });

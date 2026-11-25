@@ -30,4 +30,4 @@ dist/
 # local workflow docs
 /docs/*
 !/docs/EXAMPLES.md
-/CLAUDE.md
+!/docs/DEPLOY-*.md

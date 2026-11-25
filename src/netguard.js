@@ -8,21 +8,40 @@ const MAX_BODY = 256 * 1024;
 
 const v4 = (ip) => ip.split('.').map(Number);
 
-// IPv6 forms that embed an IPv4 address (mapped, compatible, NAT64), in WHATWG's compressed hex form.
-const EMBEDDED_V4 = /^(?:::ffff:|::|64:ff9b::)([0-9a-f]{1,4}):([0-9a-f]{1,4})$/;
+/** The eight 16-bit groups of a normalized (compressed hex) IPv6 literal. */
+function hextets(ip) {
+  const [head, tail = ''] = ip.split('::');
+  const h = head ? head.split(':') : [];
+  const t = tail ? tail.split(':') : [];
+  const mid = ip.includes('::') ? Array(8 - h.length - t.length).fill('0') : [];
+  return [...h, ...mid, ...t].map((x) => parseInt(x, 16));
+}
+
+const dotted = (hi, lo) => `${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`;
+
+/**
+ * For IPv6 forms that carry an IPv4 address (mapped, compatible, NAT64, 6to4), the IPv4 address
+ * to judge instead; 'reserved' for forms that hide one (Teredo, NAT64 local-use); else null.
+ */
+function embeddedV4(g) {
+  const zeros = (from, to) => g.slice(from, to).every((x) => x === 0);
+  if (zeros(0, 5) && g[5] === 0xffff) return dotted(g[6], g[7]); // ::ffff:a.b.c.d
+  if (zeros(0, 6) && (g[6] || g[7] > 1)) return dotted(g[6], g[7]); // ::a.b.c.d (not :: or ::1)
+  if (g[0] === 0x64 && g[1] === 0xff9b) return zeros(2, 6) ? dotted(g[6], g[7]) : 'reserved'; // 64:ff9b::/96 and 64:ff9b:1::/48
+  if (g[0] === 0x2002) return dotted(g[1], g[2]); // 6to4
+  if (g[0] === 0x2001 && g[1] === 0) return 'reserved'; // Teredo: the server's IPv4 address, not a target
+  return null;
+}
 
 /** Classifies an IP literal: loopback, private, linklocal, metadata, unspecified, reserved, public or invalid. */
 export function classifyAddress(ip0) {
   let ip = String(ip0).replace(/^\[|\]$/g, '').toLowerCase();
   if (isIP(ip) === 6) {
-    // Normalize to compressed hex (dotted tails become hex) so one regex covers every spelling.
+    // Normalize to compressed hex (dotted tails become hex) so one parser covers every spelling.
     try { ip = new URL(`http://[${ip}]`).hostname.slice(1, -1); } catch { return 'invalid'; }
-    const m = ip.match(EMBEDDED_V4);
-    if (m) {
-      const hi = parseInt(m[1], 16);
-      const lo = parseInt(m[2], 16);
-      ip = `${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`;
-    }
+    const e = embeddedV4(hextets(ip));
+    if (e === 'reserved') return 'reserved';
+    if (e) ip = e;
   }
   if (isIP(ip) === 4) {
     const [a, b] = v4(ip);

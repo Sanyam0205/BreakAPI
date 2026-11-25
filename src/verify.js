@@ -1,5 +1,6 @@
 import { isIP } from 'node:net';
 import { resolveTxt } from 'node:dns/promises';
+import { VERSION } from './version.js';
 import { classifyAddress, safeFetch, hostRefusal } from './netguard.js';
 
 const WELL_KNOWN = '/.well-known/breakapi-verification.txt';
@@ -27,7 +28,7 @@ export async function challengeHost({ entry, scheme = 'https', token, txtImpl = 
   const where = [];
   try {
     // Same guarded client as scans: link-local, metadata and (per configuration) local or private addresses are refused.
-    const r = await safeFetch(new URL(WELL_KNOWN, url.origin), { timeoutMs: 8000, maxBody: 4096, headers: { 'user-agent': 'breakAPI/0.1 (ownership verification)' } });
+    const r = await safeFetch(new URL(WELL_KNOWN, url.origin), { timeoutMs: 8000, maxBody: 4096, headers: { 'user-agent': `breakAPI/${VERSION} (ownership verification)` } });
     const text = r.status >= 200 && r.status < 300 ? r.body : '';
     if (text.split(/\r?\n/).some((line) => line.trim() === token)) return { ok: true, method: 'well-known file' };
     where.push(`${url.origin}${WELL_KNOWN}`);

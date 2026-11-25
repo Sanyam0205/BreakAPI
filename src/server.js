@@ -11,6 +11,7 @@ import { UNDERTAKING_VERSION, UNDERTAKING_CLAUSES, LEGAL_NOTICE, AUTH_LIMITATION
 import { challengeHost } from './verify.js';
 import { createScan, runScan, running, audit } from './scanner.js';
 import { renderReport, LIMITATIONS } from './report.js';
+import { toSarif } from './sarif.js';
 import { createLab } from './lab.js';
 import { createSimClient, SimError } from './simclient.js';
 import { startEmbeddedSim, SIM_PREFIX } from './simembed.js';
@@ -19,7 +20,8 @@ import { setConfig, publicConfig } from './config.js';
 import { createMailer } from './mail.js';
 import { hashPassword, verifyPassword, burnTime, passwordProblem, normalizeEmail, validEmail, randomToken, sha256, RateLimiter, publicUser } from './auth.js';
 
-export const VERSION = '0.2.0';
+import { VERSION } from './version.js';
+export { VERSION };
 const PUBLIC_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const STATIC = {
   '/': ['index.html', 'text/html; charset=utf-8'],
@@ -1117,6 +1119,11 @@ export function createApp({ config, log = console } = {}) {
         limitations: LIMITATIONS,
         authLimitations: AUTH_LIMITATIONS,
       };
+    }],
+    ['GET', /^\/api\/scans\/(\w+)\/report\.sarif$/, async ({ res, m, user }) => {
+      const s = getScan(m[1], user);
+      res.setHeader('content-disposition', `attachment; filename="breakapi-${s.id}.sarif"`);
+      return toSarif(data.projects[s.projectId], s);
     }],
   ];
 

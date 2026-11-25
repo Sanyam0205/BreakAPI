@@ -6,7 +6,7 @@
 import { createInterface } from 'node:readline';
 import { randomBytes } from 'node:crypto';
 import { loadConfig } from './config.js';
-import { Store } from './store.js';
+import { Store, StoreError } from './store.js';
 import { hashPassword, passwordProblem, normalizeEmail, validEmail } from './auth.js';
 import { newId, nowIso } from './util.js';
 
@@ -36,7 +36,12 @@ if (cmd === 'gen-key') {
   process.exit(0);
 }
 
-const store = new Store(config.dataDir);
+let store;
+try {
+  store = new Store(config.dataDir);
+} catch (err) {
+  fail(err instanceof StoreError ? err.message : err.stack);
+}
 store.data.users ??= {};
 const users = Object.values(store.data.users);
 

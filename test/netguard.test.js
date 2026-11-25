@@ -14,6 +14,10 @@ test('IPv6 forms embedding an IPv4 address are classified by that address', () =
     '::7f00:1': 'loopback', // IPv4-compatible
     '64:ff9b::a9fe:a9fe': 'metadata', // NAT64
     '64:ff9b::a00:1': 'private',
+    '2002:a9fe:a9fe::1': 'metadata', // 6to4
+    '2002:7f00:1::': 'loopback',
+    '2002:a9fe::1': 'linklocal', // compressed spelling: embeds 169.254.0.0
+    '2002:808:808::1': 'public',
     '::ffff:808:808': 'public',
     '64:ff9b::808:808': 'public',
   };
@@ -21,7 +25,7 @@ test('IPv6 forms embedding an IPv4 address are classified by that address', () =
 });
 
 test('reserved IPv4 ranges are classified reserved and always refused', () => {
-  for (const ip of ['224.0.0.1', '239.255.255.255', '240.0.0.1', '255.255.255.255', '198.18.0.1', '198.19.255.1', '192.0.0.5', '::ffff:e000:1']) {
+  for (const ip of ['224.0.0.1', '239.255.255.255', '240.0.0.1', '255.255.255.255', '198.18.0.1', '198.19.255.1', '192.0.0.5', '::ffff:e000:1', '2001:0:4136:e378:8000:63bf:3fff:fdd2', '2001::1', '64:ff9b:1::a00:1', '2002:e000:1::']) {
     assert.equal(classifyAddress(ip), 'reserved', ip);
     assert.ok(addressRefusal(ip, open), ip);
   }

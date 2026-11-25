@@ -1,5 +1,6 @@
 import { loadConfig, configProblems, publicConfig } from './config.js';
 import { createApp, VERSION } from './server.js';
+import { StoreError } from './store.js';
 
 const config = loadConfig();
 const problems = configProblems(config);
@@ -14,7 +15,14 @@ const log = {
   info: (m) => console.log(m),
   error: (m) => console.error(m instanceof Error ? m.stack : m),
 };
-const app = createApp({ config, log });
+let app;
+try {
+  app = createApp({ config, log });
+} catch (err) {
+  if (!(err instanceof StoreError)) throw err;
+  console.error(err.message);
+  process.exit(1);
+}
 // An embedded simulation takes a moment to load. A failure is logged and only turns the playground off.
 const simUp = await app.ready;
 

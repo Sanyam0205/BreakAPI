@@ -1,7 +1,7 @@
 import { decrypt } from './crypto.js';
 import { GuardedClient, ScanHalt } from './client.js';
 import { preflight } from './scope.js';
-import { newId, nowIso, SEVERITIES } from './util.js';
+import { newId, nowIso, mask, SEVERITIES } from './util.js';
 import config from './checks/config.js';
 import exposure from './checks/exposure.js';
 import authn from './checks/authn.js';
@@ -24,6 +24,28 @@ export const running = new Map();
 export function audit(project, event, detail = {}) {
   project.audit ??= [];
   project.audit.push({ at: nowIso(), event, ...detail });
+}
+
+/**
+ * Replaces every known test-account secret in the strings of `value` (deeply) with its mask, so a
+ * target that echoes a credential back cannot leak it into stored findings. Secrets under 8
+ * characters are skipped: they would mangle ordinary text. Only secrets we hold are known.
+ */
+export function scrubSecrets(value, accounts) {
+  const secrets = new Set();
+  for (const a of accounts) {
+    const s = String(a.secret ?? '');
+    secrets.add(s);
+    if (a.authType === 'cookie') for (const part of s.split(';')) secrets.add(part.slice(part.indexOf('=') + 1).trim());
+  }
+  const list = [...secrets].filter((s) => s.length >= 8).sort((a, b) => b.length - a.length);
+  const walk = (v) => {
+    if (typeof v === 'string') return list.reduce((t, s) => t.replaceAll(s, mask(s)), v);
+    if (Array.isArray(v)) return v.map(walk);
+    if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x)]));
+    return v;
+  };
+  return walk(value);
 }
 
 function pushLog(scan, entry) {
@@ -64,7 +86,8 @@ function compare(prev, cur) {
   };
 }
 
-export async function runScan({ store, key }, scanId) {
+/** `checks` defaults to every check category; tests pass their own list. */
+export async function runScan({ store, key, checks = CHECKS }, scanId) {
   const scan = store.data.scans[scanId];
   const project = store.data.projects[scan.projectId];
   const control = { paused: false, stopReason: null, userStopped: false };
@@ -99,7 +122,7 @@ export async function runScan({ store, key }, scanId) {
   const report = (f) => {
     if (keys.has(f.key)) return;
     keys.add(f.key);
-    scan.findings.push({ id: newId('f'), confidence: 'high', check: current, at: nowIso(), ...f });
+    scan.findings.push({ id: newId('f'), confidence: 'high', check: current, at: nowIso(), ...f, ...(f.evidence && { evidence: scrubSecrets(f.evidence, accounts) }) });
     store.save();
   };
 
@@ -115,15 +138,23 @@ export async function runScan({ store, key }, scanId) {
   if (!accounts.length) ctx.log('No test account credentials available — authenticated checks will be limited.');
 
   try {
-    for (const check of CHECKS) {
+    for (const check of checks) {
       const entry = scan.checks.find((c) => c.id === check.id);
       if (entry.status === 'not authorized') continue;
       current = check.id;
       entry.status = 'running';
       entry.startedAt = nowIso();
       store.save();
-      await check.run(ctx);
-      entry.status = 'done';
+      try {
+        await check.run(ctx);
+        entry.status = 'done';
+      } catch (err) {
+        if (err instanceof ScanHalt) throw err;
+        // One broken check must not cost the user every later check; retests treat it as not re-verified.
+        entry.status = 'failed';
+        entry.error = err.message;
+        ctx.log(`Check ${check.id} failed: ${err.stack || err.message}`);
+      }
       entry.finishedAt = nowIso();
     }
     scan.checks.push({ id: 'passive', status: 'done' });

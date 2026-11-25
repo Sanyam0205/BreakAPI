@@ -334,3 +334,10 @@ The printable report is the same man-page anatomy at page scale (max 980px): hea
 ## Demo disclaimer
 
 Every page, including reports, ends with a fixed, centred strip reading "This is a testing demo application only." It sits below the tmux bar, which is offset by `--disclaimer-h`, and uses `--pane-2` with `--ink` text so it stays readable without competing with severity colours.
+
+
+## Report exports
+The scan view's action row offers `Report` (HTML), `JSON` and `SARIF` as ghost buttons next to `Retest`; the two data exports download as files.
+
+## Check status in the scan strip
+Each check shows `done` (finding count), `running…`, `off`, `incomplete` or `failed`. `failed` means the check hit an internal error and the rest of the scan continued; it uses the same neutral dash as `incomplete`, with the word in the tooltip. The scan itself ends `completed`.
