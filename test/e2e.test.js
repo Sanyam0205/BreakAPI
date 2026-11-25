@@ -10,6 +10,7 @@ import { createDemoServer, demoTokens, stats } from '../demo/vulnerable-api.js';
 import { sleep } from '../src/util.js';
 import { blockedAddress } from '../src/verify.js';
 import { createScan, runScan } from '../src/scanner.js';
+import { decrypt } from '../src/crypto.js';
 import { GuardedClient, ScanHalt } from '../src/client.js';
 import { evidence } from '../src/checks/common.js';
 
@@ -529,10 +530,11 @@ test('on restart, unfinished scans become interrupted and expired authorizations
 });
 
 test('a target that echoes the test credential cannot leak it into stored findings or the report', async () => {
-  const token = demoTokens().alice;
-  const t = await throwawayTarget((req, res) => { res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({ you: req.headers.authorization, token })); });
   const id = await setupProject('echo');
   const project = app.store.data.projects[id];
+  // The account's stored secret, not a freshly minted demo token: tokens carry the current second, so a new one can differ.
+  const token = decrypt(app.key, project.accounts[0].secretEnc);
+  const t = await throwawayTarget((req, res) => { res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({ you: req.headers.authorization, token })); });
   project.authorization.allowedHosts = [`127.0.0.1:${t.port}`];
   project.target.baseUrl = `http://127.0.0.1:${t.port}`;
   const scan = createScan(app.store, project);

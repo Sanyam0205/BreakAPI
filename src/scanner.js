@@ -26,26 +26,36 @@ export function audit(project, event, detail = {}) {
   project.audit.push({ at: nowIso(), event, ...detail });
 }
 
+/** Every form a target could echo a secret in: raw, URL-encoded, base64 (padded, bare, URL-safe) and JSON-escaped. */
+function secretForms(s) {
+  const b64 = Buffer.from(s).toString('base64');
+  return [s, encodeURIComponent(s), encodeURI(s), b64, b64.replace(/=+$/, ''), Buffer.from(s).toString('base64url'), JSON.stringify(s).slice(1, -1)];
+}
+
 /**
- * Replaces every known test-account secret in the strings of `value` (deeply) with its mask, so a
- * target that echoes a credential back cannot leak it into stored findings. Secrets under 8
- * characters are skipped: they would mangle ordinary text. Only secrets we hold are known.
+ * Returns a function that replaces every known test-account secret in the strings of a value
+ * (deeply) with its mask, in each form from `secretForms`, so a target that echoes a credential
+ * back cannot leak it into stored findings or the log. Secrets under 8 characters are skipped:
+ * they would mangle ordinary text. Only secrets we hold are known, and only whole-secret
+ * encodings are caught (not a base64 of a string that merely contains the secret).
  */
-export function scrubSecrets(value, accounts) {
+export function makeScrubber(accounts) {
   const secrets = new Set();
   for (const a of accounts) {
     const s = String(a.secret ?? '');
     secrets.add(s);
     if (a.authType === 'cookie') for (const part of s.split(';')) secrets.add(part.slice(part.indexOf('=') + 1).trim());
   }
-  const list = [...secrets].filter((s) => s.length >= 8).sort((a, b) => b.length - a.length);
+  const pairs = [];
+  for (const s of secrets) if (s.length >= 8) for (const form of new Set(secretForms(s))) pairs.push([form, mask(s)]);
+  pairs.sort((x, y) => y[0].length - x[0].length);
   const walk = (v) => {
-    if (typeof v === 'string') return list.reduce((t, s) => t.replaceAll(s, mask(s)), v);
+    if (typeof v === 'string') return pairs.reduce((t, [form, m]) => t.replaceAll(form, m), v);
     if (Array.isArray(v)) return v.map(walk);
     if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x)]));
     return v;
   };
-  return walk(value);
+  return walk;
 }
 
 function pushLog(scan, entry) {
@@ -115,6 +125,7 @@ export async function runScan({ store, key, checks = CHECKS }, scanId) {
   store.saveNow();
 
   const accounts = (project.accounts || []).filter((a) => a.secretEnc).map((a) => ({ ...a, secret: decrypt(key, a.secretEnc) }));
+  const scrub = makeScrubber(accounts);
   const endpoints = project.target.endpoints.filter((e) => e.enabled);
   const keys = new Set();
   let current = 'passive';
@@ -122,7 +133,7 @@ export async function runScan({ store, key, checks = CHECKS }, scanId) {
   const report = (f) => {
     if (keys.has(f.key)) return;
     keys.add(f.key);
-    scan.findings.push({ id: newId('f'), confidence: 'high', check: current, at: nowIso(), ...f, ...(f.evidence && { evidence: scrubSecrets(f.evidence, accounts) }) });
+    scan.findings.push(scrub({ id: newId('f'), confidence: 'high', check: current, at: nowIso(), ...f }));
     store.save();
   };
 
@@ -133,8 +144,8 @@ export async function runScan({ store, key, checks = CHECKS }, scanId) {
     current = prev;
   };
 
-  const client = new GuardedClient({ project, scan, control, onLog: (e) => pushLog(scan, e), onResponse: passive });
-  const ctx = { client, project, scan, endpoints, accounts, report, log: (note) => pushLog(scan, { at: nowIso(), note }) };
+  const client = new GuardedClient({ project, scan, control, onLog: (e) => pushLog(scan, scrub(e)), onResponse: passive });
+  const ctx = { client, project, scan, endpoints, accounts, report, log: (note) => pushLog(scan, scrub({ at: nowIso(), note })) };
   if (!accounts.length) ctx.log('No test account credentials available — authenticated checks will be limited.');
 
   try {
